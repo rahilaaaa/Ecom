@@ -73,7 +73,7 @@ export function toAccountOrderPreview(order: Order): AccountOrderPreview {
     productImage: firstGalleryImage(first.product),
     additionalItemCount: Math.max(0, items.length - 1),
     amount: typeof order.amount === 'number' ? order.amount : null,
-    currency: order.currency ?? 'USD',
+    currency: order.currency ?? 'INR',
     statusLabel: getOrderStatusLabel(order),
     isCompleted: order.status === 'completed',
     primaryAction: {

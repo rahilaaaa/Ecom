@@ -65,7 +65,7 @@ export async function applyCouponCode(input: {
     if (subtotal < minSubtotal) {
       return {
         ok: false,
-        message: `This coupon requires a minimum subtotal of ${(minSubtotal / 100).toFixed(2)} USD.`,
+        message: `This coupon requires a minimum subtotal of ₹${(minSubtotal / 100).toFixed(2)}.`,
       }
     }
 

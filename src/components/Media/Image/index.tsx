@@ -49,7 +49,17 @@ export const Image: React.FC<MediaProps> = (props) => {
 
     const filename = fullFilename
 
-    src = `${process.env.NEXT_PUBLIC_SERVER_URL}${url}`
+    // Prefer same-origin relative paths so Next can use `images.localPatterns`
+    // instead of fetching localhost as a remote (blocked by default in Next 16+).
+    if (url) {
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        src = url
+      } else {
+        src = url.startsWith('/') ? url : `/${url}`
+      }
+    } else if (filename) {
+      src = `/api/media/file/${filename}`
+    }
   }
 
   // NOTE: this is used by the browser to determine which image to download at different screen sizes

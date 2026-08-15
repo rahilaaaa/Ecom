@@ -85,7 +85,7 @@ export const seed = async ({
   // as well as the collections and globals
   // this is because while `yarn seed` drops the database
   // the custom `/api/seed` endpoint does not
-  payload.logger.info(`— Clearing collections and globals...`)
+  payload.logger.info(`â€” Clearing collections and globals...`)
 
   // clear the database
   await Promise.all(
@@ -110,7 +110,7 @@ export const seed = async ({
     }
   }
 
-  payload.logger.info(`— Seeding customer and customer data...`)
+  payload.logger.info(`â€” Seeding customer and customer data...`)
 
   await payload.delete({
     collection: 'users',
@@ -122,7 +122,7 @@ export const seed = async ({
     },
   })
 
-  payload.logger.info(`— Seeding media...`)
+  payload.logger.info(`â€” Seeding media...`)
 
   const [imageHatBuffer, imageTshirtBlackBuffer, imageTshirtWhiteBuffer, heroBuffer] =
     await Promise.all([
@@ -190,7 +190,7 @@ export const seed = async ({
     ),
   ])
 
-  payload.logger.info(`— Seeding variant types and options...`)
+  payload.logger.info(`â€” Seeding variant types and options...`)
 
   const sizeVariantType = await payload.create({
     collection: 'variantTypes',
@@ -235,7 +235,7 @@ export const seed = async ({
     }),
   )
 
-  payload.logger.info(`— Seeding products...`)
+  payload.logger.info(`â€” Seeding products...`)
 
   const productHat = await payload.create({
     collection: 'products',
@@ -303,7 +303,7 @@ export const seed = async ({
     ),
   )
 
-  payload.logger.info(`— Seeding contact form...`)
+  payload.logger.info(`â€” Seeding contact form...`)
 
   const contactForm = await payload.create({
     collection: 'forms',
@@ -311,7 +311,7 @@ export const seed = async ({
     data: contactFormData(),
   })
 
-  payload.logger.info(`— Seeding pages...`)
+  payload.logger.info(`â€” Seeding pages...`)
 
   const [_, contactPage] = await Promise.all([
     payload.create({
@@ -331,7 +331,7 @@ export const seed = async ({
     }),
   ])
 
-  payload.logger.info(`— Seeding addresses...`)
+  payload.logger.info(`â€” Seeding addresses...`)
 
   const customerUSAddress = await payload.create({
     collection: 'addresses',
@@ -351,12 +351,12 @@ export const seed = async ({
     },
   })
 
-  payload.logger.info(`— Seeding transactions...`)
+  payload.logger.info(`â€” Seeding transactions...`)
 
   const pendingTransaction = await payload.create({
     collection: 'transactions',
     data: {
-      currency: 'USD',
+      currency: 'INR',
       customer: customer.id,
       paymentMethod: 'stripe',
       stripe: {
@@ -371,7 +371,7 @@ export const seed = async ({
   const succeededTransaction = await payload.create({
     collection: 'transactions',
     data: {
-      currency: 'USD',
+      currency: 'INR',
       customer: customer.id,
       paymentMethod: 'stripe',
       stripe: {
@@ -389,14 +389,14 @@ export const seed = async ({
     succeededTransactionID = `"${succeededTransactionID}"`
   }
 
-  payload.logger.info(`— Seeding carts...`)
+  payload.logger.info(`â€” Seeding carts...`)
 
   // This cart is open as it's created now
   const openCart = await payload.create({
     collection: 'carts',
     data: {
       customer: customer.id,
-      currency: 'USD',
+      currency: 'INR',
       items: [
         {
           product: productTshirt.id,
@@ -413,7 +413,7 @@ export const seed = async ({
   const abandonedCart = await payload.create({
     collection: 'carts',
     data: {
-      currency: 'USD',
+      currency: 'INR',
       createdAt: oldTimestamp,
       items: [
         {
@@ -429,7 +429,7 @@ export const seed = async ({
     collection: 'carts',
     data: {
       customer: customer.id,
-      currency: 'USD',
+      currency: 'INR',
       purchasedAt: new Date().toISOString(),
       subtotal: 7499,
       items: [
@@ -453,13 +453,13 @@ export const seed = async ({
     completedCartID = `"${completedCartID}"`
   }
 
-  payload.logger.info(`— Seeding orders...`)
+  payload.logger.info(`â€” Seeding orders...`)
 
   const orderInCompleted = await payload.create({
     collection: 'orders',
     data: {
       amount: 7499,
-      currency: 'USD',
+      currency: 'INR',
       customer: customer.id,
       shippingAddress: baseAddressUSData,
       items: [
@@ -483,7 +483,7 @@ export const seed = async ({
     collection: 'orders',
     data: {
       amount: 7499,
-      currency: 'USD',
+      currency: 'INR',
       customer: customer.id,
       shippingAddress: baseAddressUSData,
       items: [
@@ -503,7 +503,7 @@ export const seed = async ({
     },
   })
 
-  payload.logger.info(`— Seeding globals...`)
+  payload.logger.info(`â€” Seeding globals...`)
 
   await Promise.all([
     payload.updateGlobal({

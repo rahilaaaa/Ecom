@@ -1,49 +1,47 @@
 'use client'
 
-import type { Media as MediaType } from '@/payload-types'
+import type { Media as MediaType, Product } from '@/payload-types'
 import { Heart } from 'lucide-react'
-import React, { useEffect, useTransition } from 'react'
+import React, { useEffect, useMemo, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 import { Media } from '@/components/Media'
+import {
+  filterGalleryByColor,
+  getColorVariantType,
+  type GalleryItem,
+} from '@/lib/product/variantGallery'
 import { useWishlist } from '@/providers/Wishlist'
 import { cn } from '@/utilities/cn'
 
-type GalleryItem = {
-  image: MediaType
-  variantOption?: unknown
-  id?: string | null
-}
-
 type Props = {
   gallery: GalleryItem[]
+  product: Product
   productId: string
   productTitle: string
 }
 
-export function ProductGallery({ gallery, productId, productTitle }: Props) {
+export function ProductGallery({ gallery, product, productId, productTitle }: Props) {
   const searchParams = useSearchParams()
   const [current, setCurrent] = React.useState(0)
   const { isWishlisted, toggleWishlist } = useWishlist()
   const [isPending, startTransition] = useTransition()
   const wishlisted = isWishlisted(productId)
 
-  useEffect(() => {
-    const values = Array.from(searchParams.values())
-    const index = gallery.findIndex((item) => {
-      if (!item.variantOption) return false
-      const variantID =
-        typeof item.variantOption === 'object' &&
-        item.variantOption &&
-        'id' in item.variantOption
-          ? (item.variantOption as { id: string | number }).id
-          : item.variantOption
-      return values.some((value) => value === String(variantID))
-    })
-    if (index !== -1) setCurrent(index)
-  }, [searchParams, gallery])
+  const colorType = useMemo(() => getColorVariantType(product), [product])
+  const selectedColorId = colorType?.name ? searchParams.get(colorType.name) : null
 
-  if (!gallery.length) {
+  const visibleGallery = useMemo(
+    () => filterGalleryByColor(gallery, selectedColorId),
+    [gallery, selectedColorId],
+  )
+
+  // Reset to the first image whenever the selected COLOR changes (size must not affect this).
+  useEffect(() => {
+    setCurrent(0)
+  }, [selectedColorId])
+
+  if (!visibleGallery.length) {
     return (
       <div className="flex aspect-[4/5] w-full items-center justify-center rounded-lg bg-[var(--elixir-surface-container,#f0eded)] text-sm text-[var(--elixir-outline,#717878)]">
         No image available
@@ -51,15 +49,15 @@ export function ProductGallery({ gallery, productId, productTitle }: Props) {
     )
   }
 
-  const safeIndex = Math.min(current, gallery.length - 1)
-  const active = gallery[safeIndex]
+  const safeIndex = Math.min(current, visibleGallery.length - 1)
+  const active = visibleGallery[safeIndex]
 
   return (
     <div className="relative w-full">
       <div className="relative aspect-[4/5] w-full overflow-hidden rounded-lg bg-[var(--elixir-surface-container-low,#f6f3f2)] md:aspect-[3/4]">
         {active?.image ? (
           <Media
-            resource={active.image}
+            resource={active.image as MediaType}
             fill
             priority
             imgClassName="object-cover"
@@ -85,15 +83,15 @@ export function ProductGallery({ gallery, productId, productTitle }: Props) {
         </button>
       </div>
 
-      {gallery.length > 1 ? (
+      {visibleGallery.length > 1 ? (
         <div
           className="mt-4 flex items-center justify-center gap-2"
           role="tablist"
           aria-label="Product images"
         >
-          {gallery.map((item, index) => (
+          {visibleGallery.map((item, index) => (
             <button
-              key={`${item.image.id}-${index}`}
+              key={`${(item.image as MediaType).id}-${index}`}
               type="button"
               role="tab"
               aria-selected={index === safeIndex}

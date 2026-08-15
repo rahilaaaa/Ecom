@@ -12,6 +12,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { getUserDisplayName } from '@/lib/account/userDisplayName'
 import { useAuth } from '@/providers/Auth'
 import { MenuIcon } from 'lucide-react'
 import Link from 'next/link'
@@ -29,8 +30,6 @@ export function MobileMenu({ menu }: Props) {
   const searchParams = useSearchParams()
   const [isOpen, setIsOpen] = useState(false)
 
-  const closeMobileMenu = () => setIsOpen(false)
-
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth > 768) {
@@ -44,6 +43,8 @@ export function MobileMenu({ menu }: Props) {
   useEffect(() => {
     setIsOpen(false)
   }, [pathname, searchParams])
+
+  const displayName = user ? getUserDisplayName(user) : null
 
   return (
     <Sheet onOpenChange={setIsOpen} open={isOpen}>
@@ -65,7 +66,7 @@ export function MobileMenu({ menu }: Props) {
           <ul className="flex w-full flex-col">
             <li className="py-2">
               <Link href="/search" className="text-[var(--elixir-on-surface,#1c1b1b)]">
-                Discover
+                Search
               </Link>
             </li>
             <li className="py-2">
@@ -82,29 +83,30 @@ export function MobileMenu({ menu }: Props) {
         </div>
 
         {user ? (
-          <div className="mt-4">
-            <h2 className="text-xl mb-4">My account</h2>
-            <hr className="my-2" />
-            <ul className="flex flex-col gap-2">
+          <div className="mt-4 border-t border-[var(--elixir-surface-container,#f0eded)] pt-4">
+            <h2 className="font-[family-name:var(--font-newsreader)] text-lg">
+              {displayName ? `Hi, ${displayName}` : 'My account'}
+            </h2>
+            <ul className="mt-3 flex flex-col gap-2 text-sm">
               <li>
-                <Link href="/orders">Orders</Link>
+                <Link href="/account">My Account</Link>
               </li>
               <li>
-                <Link href="/account/addresses">Addresses</Link>
+                <Link href="/account/orders">My Orders</Link>
               </li>
               <li>
-                <Link href="/account">Manage account</Link>
+                <Link href="/account/wishlist">Wishlist</Link>
               </li>
-              <li className="mt-6">
+              <li className="mt-4">
                 <Button asChild variant="outline">
-                  <Link href="/logout">Log out</Link>
+                  <Link href="/logout">Logout</Link>
                 </Button>
               </li>
             </ul>
           </div>
         ) : (
-          <div>
-            <h2 className="text-xl mb-4">My account</h2>
+          <div className="mt-4 border-t border-[var(--elixir-surface-container,#f0eded)] pt-4">
+            <h2 className="font-[family-name:var(--font-newsreader)] text-lg">Account</h2>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
               <Button asChild className="w-full sm:flex-1" variant="outline">
                 <Link href="/login">Log in</Link>

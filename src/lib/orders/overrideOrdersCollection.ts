@@ -1,6 +1,9 @@
 import type { CollectionBeforeChangeHook, CollectionConfig, Field } from 'payload'
+import { APIError } from 'payload'
 
 import type { Product, Variant } from '@/payload-types'
+import { getLineUnitPrice, getUnitPrice } from '@/lib/currency'
+import { DEFAULT_SHIPPING_METHOD, calculateShippingAmount } from '@/lib/checkout/shippingConfig'
 import { addBusinessDays } from '@/lib/orders/deliveryEstimate'
 
 function enrichFields(fields: Field[]): Field[] {
@@ -99,13 +102,33 @@ const snapshotOrderPricing: CollectionBeforeChangeHook = async ({ data, req, ope
       }
 
       if (next.unitPrice == null) {
-        const price =
-          typeof variant?.priceInUSD === 'number'
-            ? variant.priceInUSD
-            : typeof product?.priceInUSD === 'number'
-              ? product.priceInUSD
-              : null
-        if (typeof price === 'number') next.unitPrice = price
+        const usesVariant = Boolean(variantID && (variant || product?.enableVariants))
+        if (usesVariant) {
+          if (!variant) {
+            throw new APIError('Order item is missing a valid product variant.', 400)
+          }
+          const price = getUnitPrice(variant)
+          if (typeof price !== 'number') {
+            throw new APIError(
+              `Variant "${variant.title || variant.id}" is missing Price In INR.`,
+              400,
+            )
+          }
+          next.unitPrice = price
+        } else {
+          const price = getLineUnitPrice({
+            product,
+            variant: null,
+            enableVariants: false,
+          })
+          if (typeof price !== 'number') {
+            throw new APIError(
+              `Product "${product?.title || productID}" is missing Price In INR.`,
+              400,
+            )
+          }
+          next.unitPrice = price
+        }
       }
 
       if (!next.productTitle && product?.title) {
@@ -127,11 +150,13 @@ const snapshotOrderPricing: CollectionBeforeChangeHook = async ({ data, req, ope
 
     if (data.subtotal == null) {
       const subtotal = nextItems.reduce((sum: number, item) => {
-        const unit = typeof item.unitPrice === 'number' ? item.unitPrice : 0
+        if (typeof item.unitPrice !== 'number') {
+          throw new APIError('Order item is missing a captured unit price.', 400)
+        }
         const qty = typeof item.quantity === 'number' ? item.quantity : 0
-        return sum + unit * qty
+        return sum + item.unitPrice * qty
       }, 0)
-      if (subtotal > 0) data.subtotal = subtotal
+      data.subtotal = subtotal
     }
   }
 
@@ -145,8 +170,19 @@ const snapshotOrderPricing: CollectionBeforeChangeHook = async ({ data, req, ope
     }
   }
 
-  if (data.shippingAmount == null && typeof data.subtotal === 'number' && data.subtotal >= 15000) {
-    data.shippingAmount = 0
+  if (data.shippingAmount == null) {
+    const subtotalPaise = typeof data.subtotal === 'number' ? data.subtotal : 0
+    data.shippingAmount = calculateShippingAmount({
+      subtotalAfterDiscountPaise: Math.max(
+        0,
+        subtotalPaise - (typeof data.discountAmount === 'number' ? data.discountAmount : 0),
+      ),
+      methodId: DEFAULT_SHIPPING_METHOD,
+    })
+  }
+
+  if (data.taxAmount == null) {
+    data.taxAmount = 0
   }
 
   return data
@@ -177,11 +213,58 @@ export function overrideOrdersCollection(defaultCollection: CollectionConfig): C
         },
       },
       {
+        name: 'discountAmount',
+        type: 'number',
+        admin: {
+          description: 'Discount applied at purchase (smallest currency unit).',
+          position: 'sidebar',
+          readOnly: true,
+        },
+      },
+      {
         name: 'taxAmount',
         type: 'number',
         admin: {
-          description: 'Tax charged at purchase (smallest currency unit).',
+          description: 'Tax charged at purchase (smallest currency unit). Unimplemented until GST rules are defined.',
           position: 'sidebar',
+        },
+      },
+      {
+        name: 'paymentMethod',
+        type: 'select',
+        options: [
+          { label: 'Cash on Delivery', value: 'cod' },
+          { label: 'Online (Stripe)', value: 'stripe' },
+        ],
+        admin: {
+          description: 'How the customer chose to pay.',
+          position: 'sidebar',
+        },
+      },
+      {
+        name: 'paymentStatus',
+        type: 'select',
+        defaultValue: 'pending',
+        options: [
+          { label: 'Pending', value: 'pending' },
+          { label: 'Paid', value: 'paid' },
+          { label: 'Failed', value: 'failed' },
+          { label: 'Refunded', value: 'refunded' },
+        ],
+        admin: {
+          description: 'COD stays pending until cash is collected. Online is paid after Stripe success.',
+          position: 'sidebar',
+        },
+      },
+      {
+        name: 'checkoutIdempotencyKey',
+        type: 'text',
+        unique: true,
+        index: true,
+        admin: {
+          description: 'Prevents duplicate COD/checkout submissions.',
+          position: 'sidebar',
+          readOnly: true,
         },
       },
       {

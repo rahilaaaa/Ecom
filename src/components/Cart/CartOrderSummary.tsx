@@ -6,10 +6,10 @@ import { toast } from 'sonner'
 
 import { Price } from '@/components/Price'
 import { applyCouponCode } from '@/lib/cart/applyCoupon'
-import { getShippingDisplay } from '@/lib/cart/shipping'
+import { getShippingDisplay } from '@/lib/checkout/shippingConfig'
 import { cn } from '@/utilities/cn'
 
-const COUPON_STORAGE_KEY = 'elixir-applied-coupon'
+const COUPON_CODE_STORAGE_KEY = 'elixir-applied-coupon-code'
 
 type AppliedCoupon = {
   code: string
@@ -31,37 +31,34 @@ export function CartOrderSummary({ subtotal, itemCount, disabled }: Props) {
   const [isError, setIsError] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  const shipping = getShippingDisplay(subtotal)
+  const shipping = getShippingDisplay(Math.max(0, subtotal - (applied?.discountAmount || 0)))
 
   useEffect(() => {
     try {
-      const raw = window.localStorage.getItem(COUPON_STORAGE_KEY)
-      if (!raw) return
-      const parsed = JSON.parse(raw) as AppliedCoupon
-      if (parsed?.code) {
-        startTransition(async () => {
-          const result = await applyCouponCode({ code: parsed.code, subtotal })
-          if (result.ok) {
-            setApplied({
-              code: result.code,
-              type: result.type,
-              value: result.value,
-              discountAmount: result.discountAmount,
-            })
-          } else {
-            window.localStorage.removeItem(COUPON_STORAGE_KEY)
-          }
-        })
-      }
+      const storedCode = window.localStorage.getItem(COUPON_CODE_STORAGE_KEY)
+      if (!storedCode) return
+      startTransition(async () => {
+        const result = await applyCouponCode({ code: storedCode, subtotal })
+        if (result.ok) {
+          setApplied({
+            code: result.code,
+            type: result.type,
+            value: result.value,
+            discountAmount: result.discountAmount,
+          })
+        } else {
+          window.localStorage.removeItem(COUPON_CODE_STORAGE_KEY)
+        }
+      })
     } catch {
       // ignore storage errors
     }
-    // Re-validate when subtotal changes
+    // Re-validate when subtotal changes — only the coupon *code* is persisted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subtotal])
 
   const discountAmount = applied?.discountAmount || 0
-  const total = Math.max(0, subtotal - discountAmount)
+  const total = Math.max(0, subtotal - discountAmount + shipping.amount)
 
   const onApply = () => {
     setMessage(null)
@@ -72,18 +69,17 @@ export function CartOrderSummary({ subtotal, itemCount, disabled }: Props) {
         setIsError(true)
         setMessage(result.message)
         setApplied(null)
-        window.localStorage.removeItem(COUPON_STORAGE_KEY)
+        window.localStorage.removeItem(COUPON_CODE_STORAGE_KEY)
         return
       }
 
-      const next = {
+      setApplied({
         code: result.code,
         type: result.type,
         value: result.value,
         discountAmount: result.discountAmount,
-      }
-      setApplied(next)
-      window.localStorage.setItem(COUPON_STORAGE_KEY, JSON.stringify(next))
+      })
+      window.localStorage.setItem(COUPON_CODE_STORAGE_KEY, result.code)
       setIsError(false)
       setMessage(result.message)
       setCode('')
@@ -94,7 +90,7 @@ export function CartOrderSummary({ subtotal, itemCount, disabled }: Props) {
   const onRemoveCoupon = () => {
     setApplied(null)
     setMessage(null)
-    window.localStorage.removeItem(COUPON_STORAGE_KEY)
+    window.localStorage.removeItem(COUPON_CODE_STORAGE_KEY)
   }
 
   const checkoutHref = useMemo(() => {
@@ -118,18 +114,8 @@ export function CartOrderSummary({ subtotal, itemCount, disabled }: Props) {
         <div className="flex items-center justify-between gap-4">
           <dt className="text-[var(--elixir-outline,#717878)]">Shipping</dt>
           <dd className="text-[var(--elixir-on-surface,#1c1b1b)]">
-            {shipping.amount === 0 ? (
-              'Free'
-            ) : shipping.amount === null ? (
-              shipping.label
-            ) : (
-              <Price amount={shipping.amount} as="span" />
-            )}
+            {shipping.amount === 0 ? 'Free' : <Price amount={shipping.amount} as="span" />}
           </dd>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <dt className="text-[var(--elixir-outline,#717878)]">Tax</dt>
-          <dd className="text-[var(--elixir-on-surface,#1c1b1b)]">Calculated at checkout</dd>
         </div>
 
         {applied ? (

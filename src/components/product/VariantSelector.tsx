@@ -4,9 +4,17 @@ import type { Product } from '@/payload-types'
 import { createUrl } from '@/utilities/createUrl'
 import { cn } from '@/utilities/cn'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import React from 'react'
+import React, { useMemo } from 'react'
 
 import { SizeGuide } from '@/components/product/SizeGuide'
+import {
+  buildParamsForColorChange,
+  buildParamsForOptionChange,
+  findVariantForOptions,
+  isColorVariantType,
+  isSizeVariantType,
+  optionId,
+} from '@/lib/product/variantGallery'
 
 const COLOR_MAP: Record<string, string> = {
   black: '#111111',
@@ -26,6 +34,7 @@ const COLOR_MAP: Record<string, string> = {
   brown: '#6b4a32',
   espresso: '#3c2415',
   red: '#7a1f1f',
+  maroon: '#800000',
   pink: '#d9a5a5',
 }
 
@@ -33,16 +42,6 @@ function resolveSwatchColor(label: string, value?: string | null) {
   if (value && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) return value
   const key = (value || label).toLowerCase().trim()
   return COLOR_MAP[key] || COLOR_MAP[label.toLowerCase().trim()] || '#c1c8c7'
-}
-
-function isColorType(name?: string | null, label?: string | null) {
-  const haystack = `${name || ''} ${label || ''}`.toLowerCase()
-  return haystack.includes('color') || haystack.includes('colour')
-}
-
-function isSizeType(name?: string | null, label?: string | null) {
-  const haystack = `${name || ''} ${label || ''}`.toLowerCase()
-  return haystack.includes('size')
 }
 
 type Props = {
@@ -57,6 +56,16 @@ export function VariantSelector({ product }: Props) {
   const variantTypes = product.variantTypes
   const hasVariants = Boolean(product.enableVariants && variants?.length && variantTypes?.length)
 
+  const selectedOptionIds = useMemo(() => {
+    const ids: string[] = []
+    for (const type of variantTypes || []) {
+      if (typeof type !== 'object' || !type?.name) continue
+      const value = searchParams.get(type.name)
+      if (value) ids.push(value)
+    }
+    return ids
+  }, [searchParams, variantTypes])
+
   if (!hasVariants) return null
 
   return (
@@ -67,8 +76,8 @@ export function VariantSelector({ product }: Props) {
         const options = type.options?.docs
         if (!options || !Array.isArray(options) || !options.length) return null
 
-        const colorType = isColorType(type.name, type.label)
-        const sizeType = isSizeType(type.name, type.label)
+        const colorType = isColorVariantType(type.name, type.label)
+        const sizeType = isSizeVariantType(type.name, type.label)
         const selectedOptionId = searchParams.get(type.name)
         const selectedOption = options.find(
           (option) => typeof option === 'object' && String(option.id) === selectedOptionId,
@@ -91,38 +100,51 @@ export function VariantSelector({ product }: Props) {
               {options.map((option) => {
                 if (!option || typeof option !== 'object') return null
 
-                const optionID = option.id
-                const optionSearchParams = new URLSearchParams(searchParams.toString())
-                optionSearchParams.delete('variant')
-                optionSearchParams.delete('image')
-                optionSearchParams.set(type.name, String(optionID))
+                const nextOptionId = String(option.id)
 
-                const currentOptions = Array.from(optionSearchParams.values())
-                let isAvailableForSale = true
+                // Preview availability for this option while keeping other current selections.
+                const previewIds = selectedOptionIds
+                  .filter((id) => {
+                    // Replace this type's current selection with the previewed option.
+                    const currentForType = searchParams.get(type.name)
+                    return currentForType ? id !== currentForType : true
+                  })
+                  .concat(nextOptionId)
 
-                if (variants) {
-                  const matchingVariant = variants
-                    .filter((variant) => typeof variant === 'object')
-                    .find((variant) => {
-                      if (!variant.options || !Array.isArray(variant.options)) return false
-                      return variant.options.every((variantOption) => {
-                        if (typeof variantOption !== 'object') {
-                          return currentOptions.includes(String(variantOption))
-                        }
-                        return currentOptions.includes(String(variantOption.id))
+                const previewVariant = findVariantForOptions(product, previewIds)
+                const isAvailableForSale = previewVariant
+                  ? Boolean(previewVariant.inventory && previewVariant.inventory > 0)
+                  : // Color may still be selectable even if current size combo is invalid —
+                    // color change handler will pick a valid size.
+                    colorType
+                    ? (product.variants?.docs || []).some((variant) => {
+                        if (typeof variant !== 'object' || !variant?.options) return false
+                        return (
+                          variant.options.some((vo) => optionId(vo) === nextOptionId) &&
+                          (variant.inventory || 0) > 0
+                        )
                       })
-                    })
+                    : false
 
-                  if (matchingVariant && typeof matchingVariant === 'object') {
-                    optionSearchParams.set('variant', String(matchingVariant.id))
-                    isAvailableForSale = Boolean(
-                      matchingVariant.inventory && matchingVariant.inventory > 0,
-                    )
-                  }
+                const isActive = selectedOptionId === nextOptionId
+
+                const onSelect = () => {
+                  const nextParams = colorType
+                    ? buildParamsForColorChange({
+                        product,
+                        colorTypeName: type.name,
+                        nextColorOptionId: nextOptionId,
+                        currentParams: searchParams,
+                      })
+                    : buildParamsForOptionChange({
+                        product,
+                        typeName: type.name,
+                        optionId: nextOptionId,
+                        currentParams: searchParams,
+                      })
+
+                  router.replace(createUrl(pathname, nextParams), { scroll: false })
                 }
-
-                const isActive = searchParams.get(type.name) === String(optionID)
-                const optionUrl = createUrl(pathname, optionSearchParams)
 
                 if (colorType) {
                   const swatch = resolveSwatchColor(option.label, option.value)
@@ -130,17 +152,17 @@ export function VariantSelector({ product }: Props) {
                     <button
                       key={option.id}
                       type="button"
-                      disabled={!isAvailableForSale}
+                      disabled={!isAvailableForSale && !isActive}
                       aria-label={`${option.label}${!isAvailableForSale ? ' (out of stock)' : ''}`}
                       aria-pressed={isActive}
                       title={`${option.label}${!isAvailableForSale ? ' (Out of Stock)' : ''}`}
-                      onClick={() => router.replace(optionUrl, { scroll: false })}
+                      onClick={onSelect}
                       className={cn(
                         'flex h-12 w-12 items-center justify-center rounded-full border transition',
                         isActive
                           ? 'border-[var(--elixir-on-surface,#1c1b1b)]'
                           : 'border-transparent',
-                        !isAvailableForSale && 'cursor-not-allowed opacity-40',
+                        !isAvailableForSale && !isActive && 'cursor-not-allowed opacity-40',
                       )}
                     >
                       <span
@@ -155,18 +177,18 @@ export function VariantSelector({ product }: Props) {
                   <button
                     key={option.id}
                     type="button"
-                    disabled={!isAvailableForSale}
+                    disabled={!isAvailableForSale && !isActive}
                     aria-pressed={isActive}
                     aria-label={`${type.label} ${option.label}${!isAvailableForSale ? ' (out of stock)' : ''}`}
                     title={`${option.label}${!isAvailableForSale ? ' (Out of Stock)' : ''}`}
-                    onClick={() => router.replace(optionUrl, { scroll: false })}
+                    onClick={onSelect}
                     className={cn(
                       'inline-flex min-h-12 min-w-12 items-center justify-center rounded-md border px-4 text-sm transition',
                       isActive
                         ? 'border-[var(--elixir-outline-variant,#c1c8c7)] bg-[var(--elixir-surface-container,#f0eded)] text-[var(--elixir-on-surface,#1c1b1b)]'
                         : 'border-[var(--elixir-outline-variant,#c1c8c7)] bg-transparent text-[var(--elixir-on-surface,#1c1b1b)] hover:bg-[var(--elixir-surface-container-low,#f6f3f2)]',
                       sizeType && 'min-w-14',
-                      !isAvailableForSale && 'cursor-not-allowed opacity-40 line-through',
+                      !isAvailableForSale && !isActive && 'cursor-not-allowed opacity-40 line-through',
                     )}
                   >
                     {option.label}

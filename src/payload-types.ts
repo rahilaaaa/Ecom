@@ -193,6 +193,9 @@ export interface UserAuthOperations {
 export interface User {
   id: number;
   name?: string | null;
+  /**
+   * Optional profile photo shown on the customer account page.
+   */
   avatar?: (number | null) | Media;
   roles?: ('admin' | 'customer')[] | null;
   orders?: {
@@ -235,6 +238,40 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media".
+ */
+export interface Media {
+  id: number;
+  alt: string;
+  caption?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "orders".
  */
 export interface Order {
@@ -245,7 +282,7 @@ export interface Order {
         variant?: (number | null) | Variant;
         quantity: number;
         /**
-         * Unit price captured at purchase (smallest currency unit).
+         * Unit price captured at purchase time (smallest currency unit).
          */
         unitPrice?: number | null;
         /**
@@ -277,7 +314,7 @@ export interface Order {
   transactions?: (number | Transaction)[] | null;
   status?: OrderStatus;
   amount?: number | null;
-  currency?: 'USD' | null;
+  currency?: 'INR' | null;
   /**
    * Items subtotal at purchase (smallest currency unit).
    */
@@ -287,9 +324,25 @@ export interface Order {
    */
   shippingAmount?: number | null;
   /**
-   * Tax charged at purchase (smallest currency unit).
+   * Discount applied at purchase (smallest currency unit).
+   */
+  discountAmount?: number | null;
+  /**
+   * Tax charged at purchase (smallest currency unit). Unimplemented until GST rules are defined.
    */
   taxAmount?: number | null;
+  /**
+   * How the customer chose to pay.
+   */
+  paymentMethod?: ('cod' | 'stripe') | null;
+  /**
+   * COD stays pending until cash is collected. Online is paid after Stripe success.
+   */
+  paymentStatus?: ('pending' | 'paid' | 'failed' | 'refunded') | null;
+  /**
+   * Prevents duplicate COD/checkout submissions.
+   */
+  checkoutIdempotencyKey?: string | null;
   estimatedDeliveryFrom?: string | null;
   estimatedDeliveryTo?: string | null;
   accessToken?: string | null;
@@ -334,8 +387,8 @@ export interface Product {
     hasNextPage?: boolean;
     totalDocs?: number;
   };
-  priceInUSDEnabled?: boolean | null;
-  priceInUSD?: number | null;
+  priceInINREnabled?: boolean | null;
+  priceInINR?: number | null;
   relatedProducts?: (number | Product)[] | null;
   meta?: {
     title?: string | null;
@@ -356,10 +409,6 @@ export interface Product {
    */
   rating?: number | null;
   /**
-   * Original price before discount (in cents). Used for sale styling.
-   */
-  compareAtPriceInUSD?: number | null;
-  /**
    * When enabled, the slug will auto-generate from the title field on save and autosave.
    */
   generateSlug?: boolean | null;
@@ -368,40 +417,6 @@ export interface Product {
   createdAt: string;
   deletedAt?: string | null;
   _status?: ('draft' | 'published') | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media".
- */
-export interface Media {
-  id: number;
-  alt: string;
-  caption?: {
-    root: {
-      type: string;
-      children: {
-        type: any;
-        version: number;
-        [k: string]: unknown;
-      }[];
-      direction: ('ltr' | 'rtl') | null;
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-      indent: number;
-      version: number;
-    };
-    [k: string]: unknown;
-  } | null;
-  updatedAt: string;
-  createdAt: string;
-  url?: string | null;
-  thumbnailURL?: string | null;
-  filename?: string | null;
-  mimeType?: string | null;
-  filesize?: number | null;
-  width?: number | null;
-  height?: number | null;
-  focalX?: number | null;
-  focalY?: number | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -940,8 +955,14 @@ export interface Variant {
   product: number | Product;
   options: (number | VariantOption)[];
   inventory?: number | null;
-  priceInUSDEnabled?: boolean | null;
-  priceInUSD?: number | null;
+  /**
+   * INR is the store currency. Keep this enabled and set Price In INR.
+   */
+  priceInINREnabled?: boolean | null;
+  /**
+   * Required unit price in paise (smallest INR unit). Example: ₹1,500.00 = 150000.
+   */
+  priceInINR?: number | null;
   updatedAt: string;
   createdAt: string;
   deletedAt?: string | null;
@@ -985,7 +1006,7 @@ export interface Transaction {
   order?: (number | null) | Order;
   cart?: (number | null) | Cart;
   amount?: number | null;
-  currency?: 'USD' | null;
+  currency?: 'INR' | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1008,38 +1029,9 @@ export interface Cart {
   purchasedAt?: string | null;
   status?: ('active' | 'purchased' | 'abandoned') | null;
   subtotal?: number | null;
-  currency?: 'USD' | null;
+  currency?: 'INR' | null;
   updatedAt: string;
   createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "coupons".
- */
-export interface Coupon {
-  id: number;
-  code: string;
-  type: 'percent' | 'fixed';
-  value: number;
-  minSubtotal?: number | null;
-  active?: boolean | null;
-  expiresAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "coupons_select".
- */
-export interface CouponsSelect<T extends boolean = true> {
-  code?: T;
-  type?: T;
-  value?: T;
-  minSubtotal?: T;
-  active?: T;
-  expiresAt?: T;
-  updatedAt?: T;
-  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1103,6 +1095,32 @@ export interface Address {
   createdAt: string;
 }
 /**
+ * Promotional codes that can be applied on the cart page.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "coupons".
+ */
+export interface Coupon {
+  id: number;
+  /**
+   * Customer-facing code (case-insensitive), e.g. WELCOME10
+   */
+  code: string;
+  type: 'percent' | 'fixed';
+  /**
+   * Percent (e.g. 10) or fixed amount in cents (e.g. 1500 = $15).
+   */
+  value: number;
+  /**
+   * Minimum cart subtotal in cents required to use this coupon.
+   */
+  minSubtotal?: number | null;
+  active?: boolean | null;
+  expiresAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "form-submissions".
  */
@@ -1158,6 +1176,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'coupons';
+        value: number | Coupon;
       } | null)
     | ({
         relationTo: 'forms';
@@ -1477,6 +1499,20 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "coupons_select".
+ */
+export interface CouponsSelect<T extends boolean = true> {
+  code?: T;
+  type?: T;
+  value?: T;
+  minSubtotal?: T;
+  active?: T;
+  expiresAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "forms_select".
  */
 export interface FormsSelect<T extends boolean = true> {
@@ -1653,8 +1689,8 @@ export interface VariantsSelect<T extends boolean = true> {
   product?: T;
   options?: T;
   inventory?: T;
-  priceInUSDEnabled?: T;
-  priceInUSD?: T;
+  priceInINREnabled?: T;
+  priceInINR?: T;
   updatedAt?: T;
   createdAt?: T;
   deletedAt?: T;
@@ -1710,8 +1746,8 @@ export interface ProductsSelect<T extends boolean = true> {
   enableVariants?: T;
   variantTypes?: T;
   variants?: T;
-  priceInUSDEnabled?: T;
-  priceInUSD?: T;
+  priceInINREnabled?: T;
+  priceInINR?: T;
   relatedProducts?: T;
   meta?:
     | T
@@ -1724,7 +1760,6 @@ export interface ProductsSelect<T extends boolean = true> {
   featured?: T;
   badge?: T;
   rating?: T;
-  compareAtPriceInUSD?: T;
   generateSlug?: T;
   slug?: T;
   updatedAt?: T;
@@ -1793,7 +1828,11 @@ export interface OrdersSelect<T extends boolean = true> {
   currency?: T;
   subtotal?: T;
   shippingAmount?: T;
+  discountAmount?: T;
   taxAmount?: T;
+  paymentMethod?: T;
+  paymentStatus?: T;
+  checkoutIdempotencyKey?: T;
   estimatedDeliveryFrom?: T;
   estimatedDeliveryTo?: T;
   accessToken?: T;
@@ -1977,7 +2016,7 @@ export interface Footer {
  */
 export interface Homepage {
   id: number;
-  hero?: {
+  hero: {
     eyebrow?: string | null;
     heading: string;
     ctaLabel?: string | null;
@@ -2039,28 +2078,6 @@ export interface Discover {
   };
   updatedAt?: string | null;
   createdAt?: string | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "discover_select".
- */
-export interface DiscoverSelect<T extends boolean = true> {
-  popularSearches?:
-    | T
-    | {
-        label?: T;
-        query?: T;
-        id?: T;
-      };
-  newArrivals?:
-    | T
-    | {
-        heading?: T;
-        description?: T;
-        href?: T;
-      };
-  updatedAt?: T;
-  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2176,6 +2193,29 @@ export interface HomepageSelect<T extends boolean = true> {
         heading?: T;
         description?: T;
         form?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discover_select".
+ */
+export interface DiscoverSelect<T extends boolean = true> {
+  popularSearches?:
+    | T
+    | {
+        label?: T;
+        query?: T;
+        id?: T;
+      };
+  newArrivals?:
+    | T
+    | {
+        heading?: T;
+        description?: T;
+        href?: T;
       };
   updatedAt?: T;
   createdAt?: T;

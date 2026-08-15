@@ -1,6 +1,7 @@
 'use client'
 
 import { Price } from '@/components/Price'
+import { getLineUnitPrice } from '@/lib/currency'
 import {
   Sheet,
   SheetContent,
@@ -78,13 +79,15 @@ export function CartModal() {
                       : undefined
 
                   let image = firstGalleryImage || metaImage
-                  let price = product.priceInUSD
-
                   const isVariant = Boolean(variant) && typeof variant === 'object'
+                  const price =
+                    getLineUnitPrice({
+                      product,
+                      variant: isVariant ? variant : null,
+                      enableVariants: Boolean(product.enableVariants && isVariant),
+                    }) ?? undefined
 
                   if (isVariant) {
-                    price = variant?.priceInUSD
-
                     const imageVariant = product.gallery?.find((item) => {
                       if (!item.variantOption) return false
                       const variantOptionID =

@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation'
 import { Price } from '@/components/Price'
 import { PrintInvoiceButton } from '@/components/orders/PrintInvoiceButton'
 import { formatOrderNumber } from '@/lib/account/orderPreview'
+import { getLineUnitPrice } from '@/lib/currency'
 import { getSecureOrder } from '@/lib/orders/getSecureOrder'
 import type { Order, Product, Variant } from '@/payload-types'
 import { formatDateTime } from '@/utilities/formatDateTime'
@@ -104,11 +105,11 @@ export default async function OrderInvoicePage({ params, searchParams }: PagePro
             const unit =
               typeof item.unitPrice === 'number'
                 ? item.unitPrice
-                : typeof variant?.priceInUSD === 'number'
-                  ? variant.priceInUSD
-                  : typeof product?.priceInUSD === 'number'
-                    ? product.priceInUSD
-                    : null
+                : getLineUnitPrice({
+                    product,
+                    variant,
+                    enableVariants: Boolean(product?.enableVariants && variant),
+                  })
             const line =
               typeof unit === 'number' && typeof item.quantity === 'number'
                 ? unit * item.quantity

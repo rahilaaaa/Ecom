@@ -2,6 +2,7 @@ import { Media } from '@/components/Media'
 import { OrderStatus } from '@/components/OrderStatus'
 import { Price } from '@/components/Price'
 import { Button } from '@/components/ui/button'
+import { getLineUnitPrice } from '@/lib/currency'
 import { Media as MediaType, Order, Product, Variant } from '@/payload-types'
 import { formatDateTime } from '@/utilities/formatDateTime'
 import Link from 'next/link'
@@ -55,7 +56,11 @@ export const ProductItem: React.FC<Props> = ({
     }
   }
 
-  const itemPrice = variant?.priceInUSD || product.priceInUSD
+  const itemPrice = getLineUnitPrice({
+    product,
+    variant,
+    enableVariants: Boolean(product.enableVariants && variant),
+  })
   const itemURL = `/products/${product.slug}${variant ? `?variant=${variant.id}` : ''}`
 
   return (

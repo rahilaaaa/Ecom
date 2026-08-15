@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 
 import { EditItemQuantityButton } from '@/components/Cart/EditItemQuantityButton'
 import { Price } from '@/components/Price'
+import { getLineUnitPrice } from '@/lib/currency'
 import { useCart } from '@payloadcms/plugin-ecommerce/client/react'
 import { useWishlist } from '@/providers/Wishlist'
 import { cn } from '@/utilities/cn'
@@ -32,12 +33,15 @@ function resolveItemVisual(item: CartItem): {
     typeof product.gallery?.[0]?.image === 'object' ? product.gallery[0].image : undefined
 
   let image = firstGalleryImage || metaImage
-  let price = typeof product.priceInUSD === 'number' ? product.priceInUSD : undefined
+  const price =
+    getLineUnitPrice({
+      product,
+      variant: isVariant && variant ? variant : null,
+      enableVariants: Boolean(product.enableVariants && isVariant),
+    }) ?? undefined
   let variantLabel: string | undefined
 
   if (isVariant && variant) {
-    price = typeof variant.priceInUSD === 'number' ? variant.priceInUSD : price
-
     variantLabel = variant.options
       ?.map((option) => {
         if (typeof option === 'object' && option) {

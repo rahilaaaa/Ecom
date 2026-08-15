@@ -1,5 +1,7 @@
 import type { Category, Media, Product, Variant } from '@/payload-types'
 
+import { getLineUnitPrice, getUnitPrice } from '@/lib/currency'
+
 export type ProductCardData = {
   id: string
   slug: string
@@ -7,7 +9,6 @@ export type ProductCardData = {
   href: string
   image: Media | null
   price: number | null
-  compareAtPrice: number | null
   badge: 'none' | 'new' | 'sale' | null
   rating: number | null
   isOnSale: boolean
@@ -18,21 +19,19 @@ export type ProductCardData = {
 }
 
 function resolvePrice(product: Partial<Product>): number | null {
-  let price = typeof product.priceInUSD === 'number' ? product.priceInUSD : null
-
-  const variants = product.variants?.docs
-  if (variants && variants.length > 0) {
-    const variant = variants[0]
-    if (
-      variant &&
-      typeof variant === 'object' &&
-      typeof (variant as Variant).priceInUSD === 'number'
-    ) {
-      price = (variant as Variant).priceInUSD as number
+  if (product.enableVariants) {
+    const variants = product.variants?.docs
+    if (variants && variants.length > 0) {
+      const prices = variants
+        .map((variant) => (typeof variant === 'object' ? getUnitPrice(variant as Variant) : null))
+        .filter((price): price is number => typeof price === 'number')
+      // Variant products must be priced on variants — never fall back to product price.
+      return prices.length ? Math.min(...prices) : null
     }
+    return null
   }
 
-  return price
+  return getUnitPrice(product as Product)
 }
 
 function resolveCategory(product: Partial<Product>): string | null {
@@ -45,7 +44,6 @@ function resolveCategory(product: Partial<Product>): string | null {
 function resolveInStock(product: Partial<Product>): boolean {
   if (product.enableVariants) {
     const variants = product.variants?.docs || []
-    // Join may be empty depending on query depth — defer to PDP rather than false OOS.
     if (variants.length === 0) return true
     return variants.some((variant) => {
       if (typeof variant !== 'object' || !variant) return false
@@ -66,12 +64,8 @@ export function toProductCardData(
       : null
 
   const price = resolvePrice(product)
-  const compareAtPrice =
-    typeof product.compareAtPriceInUSD === 'number' ? product.compareAtPriceInUSD : null
   const badge = (product.badge as ProductCardData['badge']) ?? 'none'
-  const isOnSale =
-    badge === 'sale' ||
-    (typeof compareAtPrice === 'number' && typeof price === 'number' && compareAtPrice > price)
+  const isOnSale = badge === 'sale'
 
   return {
     id: String(product.id),
@@ -80,12 +74,22 @@ export function toProductCardData(
     href: `/products/${product.slug}`,
     image,
     price,
-    compareAtPrice: isOnSale ? compareAtPrice : null,
-    badge: isOnSale && badge === 'none' ? 'sale' : badge,
+    badge,
     rating: typeof product.rating === 'number' ? product.rating : null,
     isOnSale,
     category: resolveCategory(product),
     inStock: resolveInStock(product),
     enableVariants: Boolean(product.enableVariants),
   }
+}
+
+export function getProductOrVariantPrice(
+  product: Product,
+  variant?: Variant | null,
+): number | null {
+  return getLineUnitPrice({
+    product,
+    variant,
+    enableVariants: product.enableVariants,
+  })
 }

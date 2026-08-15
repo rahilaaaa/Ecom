@@ -4,6 +4,7 @@ import { ProductGallery } from '@/components/product/ProductGallery'
 import { ProductInfo } from '@/components/product/ProductInfo'
 import { ProductPurchaseActions } from '@/components/product/ProductPurchaseActions'
 import { RecommendedProducts } from '@/components/product/RecommendedProducts'
+import { getUnitPrice, STORE_CURRENCY_CODE } from '@/lib/currency'
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 import { draftMode } from 'next/headers'
@@ -76,11 +77,13 @@ export default async function ProductPage({ params }: Args) {
       })
     : Boolean(product.inventory && product.inventory > 0)
 
-  let price = product.priceInUSD
+  let price = getUnitPrice(product)
   if (product.enableVariants && product?.variants?.docs?.length) {
     price = product.variants.docs.reduce((acc, variant) => {
-      if (typeof variant === 'object' && variant?.priceInUSD && acc && variant.priceInUSD > acc) {
-        return variant.priceInUSD
+      if (typeof variant !== 'object' || !variant) return acc
+      const variantPrice = getUnitPrice(variant)
+      if (variantPrice != null && (acc == null || variantPrice > acc)) {
+        return variantPrice
       }
       return acc
     }, price)
@@ -96,7 +99,7 @@ export default async function ProductPage({ params }: Args) {
       '@type': 'AggregateOffer',
       availability: hasStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       priceAmount: price,
-      priceCurrency: 'USD',
+      priceCurrency: STORE_CURRENCY_CODE,
     },
   }
 
@@ -120,6 +123,7 @@ export default async function ProductPage({ params }: Args) {
           >
             <ProductGallery
               gallery={gallery}
+              product={product}
               productId={String(product.id)}
               productTitle={product.title}
             />
@@ -183,8 +187,7 @@ async function getRecommendedProducts(product: Product): Promise<Product[]> {
       slug: true,
       gallery: true,
       categories: true,
-      priceInUSD: true,
-      compareAtPriceInUSD: true,
+      priceInINR: true,
       badge: true,
       rating: true,
       featured: true,
@@ -218,7 +221,7 @@ const queryProductBySlug = async ({ slug }: { slug: string }) => {
     populate: {
       variants: {
         title: true,
-        priceInUSD: true,
+        priceInINR: true,
         inventory: true,
         options: true,
       },

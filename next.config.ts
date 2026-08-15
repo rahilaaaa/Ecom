@@ -16,9 +16,15 @@ const nextConfig: NextConfig = {
     loadPaths: ['./node_modules/@payloadcms/ui/dist/scss/'],
   },
   images: {
+    // Next.js 16+ blocks optimizing images from private/loopback hosts by default.
+    // Local Payload media is served from this same app on localhost in development.
+    dangerouslyAllowLocalIP: true,
     localPatterns: [
       {
         pathname: '/api/media/file/**',
+      },
+      {
+        pathname: '/media/**',
       },
     ],
     qualities: [90, 100],

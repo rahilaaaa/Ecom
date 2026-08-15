@@ -7,17 +7,37 @@ import React, { useMemo, useState } from 'react'
 import { useCart } from '@payloadcms/plugin-ecommerce/client/react'
 
 import { Price } from '@/components/Price'
+import { getLineUnitPrice } from '@/lib/currency'
+import {
+  DEFAULT_SHIPPING_METHOD,
+  getShippingDisplay,
+  type ShippingMethodId,
+} from '@/lib/checkout/shippingConfig'
 import type { Media, Product } from '@/payload-types'
 import { cn } from '@/utilities/cn'
-import { getShippingDisplay } from '@/lib/cart/shipping'
 
 const brandName = process.env.NEXT_PUBLIC_SITE_NAME || process.env.SITE_NAME || 'ELIXIR'
 
 type Props = {
+  /** Server-authoritative amounts (paise). Prefer these over cart.subtotal alone. */
+  subtotal?: number
   discountAmount?: number
+  shippingAmount?: number
+  taxAmount?: number
+  total?: number
+  shippingMethodId?: ShippingMethodId
+  taxImplemented?: boolean
 }
 
-export function CheckoutChrome({ discountAmount = 0 }: Props) {
+export function CheckoutChrome({
+  subtotal: subtotalProp,
+  discountAmount = 0,
+  shippingAmount,
+  taxAmount = 0,
+  total: totalProp,
+  shippingMethodId = DEFAULT_SHIPPING_METHOD,
+  taxImplemented = false,
+}: Props) {
   const { cart } = useCart()
   const [open, setOpen] = useState(false)
 
@@ -26,9 +46,16 @@ export function CheckoutChrome({ discountAmount = 0 }: Props) {
     return cart.items.reduce((sum, item) => sum + (item.quantity || 0), 0)
   }, [cart?.items])
 
-  const subtotal = typeof cart?.subtotal === 'number' ? cart.subtotal : 0
-  const shipping = getShippingDisplay(subtotal)
-  const total = Math.max(0, subtotal - discountAmount)
+  const cartSubtotal = typeof cart?.subtotal === 'number' ? cart.subtotal : 0
+  const subtotal = typeof subtotalProp === 'number' ? subtotalProp : cartSubtotal
+  const shipping =
+    typeof shippingAmount === 'number'
+      ? { label: shippingAmount === 0 ? 'Free' : 'Shipping', amount: shippingAmount }
+      : getShippingDisplay(Math.max(0, subtotal - discountAmount), shippingMethodId)
+  const total =
+    typeof totalProp === 'number'
+      ? totalProp
+      : Math.max(0, subtotal - discountAmount + shipping.amount + (taxImplemented ? taxAmount : 0))
 
   return (
     <>
@@ -88,22 +115,30 @@ export function CheckoutChrome({ discountAmount = 0 }: Props) {
                     ? product.gallery[0].image
                     : undefined) ||
                   (typeof product.meta?.image === 'object' ? product.meta.image : undefined)
-                let price = product.priceInUSD
+                const price =
+                  getLineUnitPrice({
+                    product,
+                    variant: isVariant && variant ? variant : null,
+                    enableVariants: Boolean(product.enableVariants && isVariant),
+                  }) ?? undefined
 
                 if (isVariant && variant) {
-                  price = variant.priceInUSD
-                  const imageVariant = product.gallery?.find((galleryItem) => {
+                  const imageVariant = product.gallery?.find((galleryItem: { variantOption?: unknown; image?: unknown }) => {
                     if (!galleryItem.variantOption) return false
                     const optionId =
-                      typeof galleryItem.variantOption === 'object'
-                        ? galleryItem.variantOption.id
+                      typeof galleryItem.variantOption === 'object' &&
+                      galleryItem.variantOption &&
+                      'id' in galleryItem.variantOption
+                        ? (galleryItem.variantOption as { id: string | number }).id
                         : galleryItem.variantOption
-                    return variant.options?.some((option) =>
-                      typeof option === 'object' ? option.id === optionId : option === optionId,
+                    return variant.options?.some((option: unknown) =>
+                      typeof option === 'object' && option && 'id' in option
+                        ? (option as { id: string | number }).id === optionId
+                        : option === optionId,
                     )
                   })
                   if (imageVariant && typeof imageVariant.image === 'object') {
-                    image = imageVariant.image
+                    image = imageVariant.image as Media
                   }
                 }
 
@@ -136,8 +171,10 @@ export function CheckoutChrome({ discountAmount = 0 }: Props) {
                         {isVariant && variant ? (
                           <p className="text-xs text-[var(--elixir-outline,#717878)]">
                             {variant.options
-                              ?.map((option) =>
-                                typeof option === 'object' ? option.label : null,
+                              ?.map((option: unknown) =>
+                                typeof option === 'object' && option && 'label' in option
+                                  ? String((option as { label?: string }).label || '')
+                                  : null,
                               )
                               .filter(Boolean)
                               .join(' · ')}
@@ -160,20 +197,30 @@ export function CheckoutChrome({ discountAmount = 0 }: Props) {
                   <Price amount={subtotal} as="span" />
                 </dd>
               </div>
-              <div className="flex justify-between">
-                <dt className="text-[var(--elixir-outline,#717878)]">Shipping</dt>
-                <dd>{shipping.amount === 0 ? 'Free' : shipping.label}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-[var(--elixir-outline,#717878)]">Tax</dt>
-                <dd>Calculated at checkout</dd>
-              </div>
               {discountAmount > 0 ? (
                 <div className="flex justify-between text-[#ba1a1a]">
                   <dt>Discount</dt>
                   <dd>
                     −
                     <Price amount={discountAmount} as="span" />
+                  </dd>
+                </div>
+              ) : null}
+              <div className="flex justify-between">
+                <dt className="text-[var(--elixir-outline,#717878)]">Shipping</dt>
+                <dd>
+                  {shipping.amount === 0 ? (
+                    'Free'
+                  ) : (
+                    <Price amount={shipping.amount} as="span" />
+                  )}
+                </dd>
+              </div>
+              {taxImplemented && taxAmount > 0 ? (
+                <div className="flex justify-between">
+                  <dt className="text-[var(--elixir-outline,#717878)]">Tax</dt>
+                  <dd>
+                    <Price amount={taxAmount} as="span" />
                   </dd>
                 </div>
               ) : null}

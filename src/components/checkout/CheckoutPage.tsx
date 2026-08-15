@@ -5,30 +5,65 @@ import { CheckoutChrome } from '@/components/checkout/CheckoutChrome'
 import { CheckoutInput, CheckoutSelect } from '@/components/checkout/CheckoutFields'
 import { CheckoutForm } from '@/components/forms/CheckoutForm'
 import { LoadingSpinner } from '@/components/LoadingSpinner'
-import { stateOptions } from '@/blocks/Form/State/options'
-import { subscribeNewsletter } from '@/lib/home/subscribeNewsletter'
+import {
+  CHECKOUT_COUNTRY_OPTIONS,
+  DEFAULT_COUNTRY,
+  getCountryLabel,
+  isIndia,
+  isValidIndiaMobile,
+  isValidIndiaPin,
+  phoneFieldLabel,
+  postalCodeLabel,
+  type CountryCode,
+} from '@/lib/address/countries'
+import {
+  getStateOptionsForCountry,
+  isStateRequired,
+  stateFieldLabel,
+} from '@/lib/address/states'
+import {
+  clearCheckoutDraft,
+  loadCheckoutDraft,
+  saveCheckoutDraft,
+} from '@/lib/checkout/checkoutDraft'
+import {
+  CHECKOUT_PAYMENT_METHODS,
+  formatInrFromPaise,
+  isStripePublishableConfigured,
+  type CheckoutPaymentMethod,
+} from '@/lib/checkout/paymentMethods'
+import { placeCodOrder } from '@/lib/checkout/placeCodOrder'
 import { validateCheckoutCart } from '@/lib/checkout/validateCheckoutCart'
+import {
+  DEFAULT_SHIPPING_METHOD,
+  SHIPPING_CONFIG,
+  getShippingDisplay,
+  type ShippingMethodId,
+} from '@/lib/checkout/shippingConfig'
+import { subscribeNewsletter } from '@/lib/home/subscribeNewsletter'
 import { cssVariables } from '@/cssVariables'
 import { useAuth } from '@/providers/Auth'
-import { useTheme } from '@/providers/Theme'
 import { Address } from '@/payload-types'
 import { useAddresses, useCart, usePayments } from '@payloadcms/plugin-ecommerce/client/react'
 import { Elements } from '@stripe/react-stripe-js'
 import { loadStripe } from '@stripe/stripe-js'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
-import React, { Suspense, useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
+import { Price } from '@/components/Price'
 import { cn } from '@/utilities/cn'
 
 const apiKey = `${process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}`
 const stripe = loadStripe(apiKey)
 
+const COUPON_CODE_STORAGE_KEY = 'elixir-applied-coupon-code'
+
 type Step = 'information' | 'shipping' | 'payment'
 
 type AddressDraft = {
-  country: Address['country']
+  country: CountryCode
   firstName: string
   lastName: string
   addressLine1: string
@@ -36,11 +71,11 @@ type AddressDraft = {
   city: string
   state: string
   postalCode: string
-  phone?: string
+  phone: string
 }
 
 const emptyAddress: AddressDraft = {
-  country: 'US',
+  country: DEFAULT_COUNTRY,
   firstName: '',
   lastName: '',
   addressLine1: '',
@@ -51,12 +86,14 @@ const emptyAddress: AddressDraft = {
   phone: '',
 }
 
-const COUNTRY_OPTIONS = [
-  { label: 'United States', value: 'US' },
-  { label: 'United Kingdom', value: 'GB' },
-  { label: 'Canada', value: 'CA' },
-  { label: 'Australia', value: 'AU' },
-]
+type ServerTotals = {
+  subtotal: number
+  discount: number
+  shipping: number
+  tax: number
+  total: number
+  taxImplemented: boolean
+}
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
@@ -112,45 +149,109 @@ function StepNav({
 
 export const CheckoutPage: React.FC = () => {
   const { user } = useAuth()
-  const { theme } = useTheme()
-  const { cart } = useCart()
+  const { cart, clearCart } = useCart()
   const { initiatePayment } = usePayments()
   const { addresses } = useAddresses()
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   const [step, setStep] = useState<Step>('information')
   const [email, setEmail] = useState('')
   const [marketingOptIn, setMarketingOptIn] = useState(true)
   const [address, setAddress] = useState<AddressDraft>(emptyAddress)
-  const [shippingMethod, setShippingMethod] = useState<'standard' | 'express'>('standard')
+  const [shippingMethod, setShippingMethod] =
+    useState<ShippingMethodId>(DEFAULT_SHIPPING_METHOD)
+  const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [paymentData, setPaymentData] = useState<null | Record<string, unknown>>(null)
   const [isProcessingPayment, setProcessingPayment] = useState(false)
-  const [discountAmount, setDiscountAmount] = useState(0)
+  const [isPlacingCod, setIsPlacingCod] = useState(false)
   const [couponCode, setCouponCode] = useState<string | null>(null)
+  const [serverTotals, setServerTotals] = useState<ServerTotals | null>(null)
+  const [draftReady, setDraftReady] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const codIdempotencyKeyRef = useRef<string | null>(null)
+  const initiatingOnlineRef = useRef(false)
 
   const cartIsEmpty = !cart || !cart.items || !cart.items.length
+  const stateOptions = getStateOptionsForCountry(address.country)
+  const stripePublishableConfigured = isStripePublishableConfigured(apiKey)
+
+  useEffect(() => {
+    const draft = loadCheckoutDraft()
+    if (draft) {
+      if (draft.step === 'information' || draft.step === 'shipping') {
+        setStep(draft.step)
+      }
+      if (draft.email) setEmail(draft.email)
+      if (typeof draft.marketingOptIn === 'boolean') setMarketingOptIn(draft.marketingOptIn)
+      if (draft.shippingMethod === 'standard' || draft.shippingMethod === 'express') {
+        setShippingMethod(draft.shippingMethod)
+      }
+      if (draft.paymentMethod === 'cod' || draft.paymentMethod === 'online') {
+        setPaymentMethod(draft.paymentMethod)
+      }
+      if (draft.couponCode) setCouponCode(draft.couponCode)
+      setAddress((prev) => ({
+        ...prev,
+        country: (draft.country as CountryCode) || prev.country || DEFAULT_COUNTRY,
+        firstName: draft.firstName || '',
+        lastName: draft.lastName || '',
+        addressLine1: draft.addressLine1 || '',
+        addressLine2: draft.addressLine2 || '',
+        city: draft.city || '',
+        state: draft.state || '',
+        postalCode: draft.postalCode || '',
+        phone: draft.phone || '',
+      }))
+    }
+
+    const couponFromQuery = searchParams.get('coupon')
+    if (couponFromQuery) setCouponCode(couponFromQuery)
+
+    try {
+      const storedCode = window.localStorage.getItem(COUPON_CODE_STORAGE_KEY)
+      if (storedCode && !couponFromQuery) setCouponCode(storedCode)
+    } catch {
+      // ignore
+    }
+
+    setDraftReady(true)
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!draftReady) return
+    saveCheckoutDraft({
+      step: step === 'payment' ? 'shipping' : step,
+      email,
+      marketingOptIn,
+      country: address.country,
+      firstName: address.firstName,
+      lastName: address.lastName,
+      addressLine1: address.addressLine1,
+      addressLine2: address.addressLine2,
+      city: address.city,
+      state: address.state,
+      postalCode: address.postalCode,
+      phone: address.phone,
+      shippingMethod,
+      couponCode,
+      paymentMethod,
+    })
+  }, [draftReady, step, email, marketingOptIn, address, shippingMethod, couponCode, paymentMethod])
+
+  useEffect(() => {
+    if (!draftReady || step !== 'shipping' || cartIsEmpty) return
+    startTransition(async () => {
+      await runCartValidation()
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shippingMethod])
 
   useEffect(() => {
     if (user?.email) setEmail(user.email)
   }, [user?.email])
-
-  useEffect(() => {
-    const coupon = searchParams.get('coupon')
-    if (coupon) setCouponCode(coupon)
-
-    try {
-      const raw = window.localStorage.getItem('elixir-applied-coupon')
-      if (raw) {
-        const parsed = JSON.parse(raw) as { code?: string; discountAmount?: number }
-        if (parsed.code) setCouponCode(parsed.code)
-        if (typeof parsed.discountAmount === 'number') setDiscountAmount(parsed.discountAmount)
-      }
-    } catch {
-      // ignore
-    }
-  }, [searchParams])
 
   useEffect(() => {
     if (!user || !addresses?.length) return
@@ -158,7 +259,7 @@ export const CheckoutPage: React.FC = () => {
     const defaultAddress = addresses[0]
     if (!defaultAddress) return
     setAddress({
-      country: defaultAddress.country || 'US',
+      country: (defaultAddress.country as CountryCode) || DEFAULT_COUNTRY,
       firstName: defaultAddress.firstName || '',
       lastName: defaultAddress.lastName || '',
       addressLine1: defaultAddress.addressLine1 || '',
@@ -173,10 +274,8 @@ export const CheckoutPage: React.FC = () => {
   const cartItemsPayload = useMemo(() => {
     return (cart?.items || [])
       .map((item) => {
-        const productId =
-          typeof item.product === 'object' ? item.product?.id : item.product
-        const variantId =
-          typeof item.variant === 'object' ? item.variant?.id : item.variant
+        const productId = typeof item.product === 'object' ? item.product?.id : item.product
+        const variantId = typeof item.variant === 'object' ? item.variant?.id : item.variant
         if (!productId) return null
         return {
           productId,
@@ -199,11 +298,24 @@ export const CheckoutPage: React.FC = () => {
     if (!address.lastName.trim()) nextErrors.lastName = 'Last name is required.'
     if (!address.addressLine1.trim()) nextErrors.addressLine1 = 'Address is required.'
     if (!address.city.trim()) nextErrors.city = 'City is required.'
-    if (!address.postalCode.trim()) nextErrors.postalCode = 'ZIP / postal code is required.'
     if (!address.country) nextErrors.country = 'Country is required.'
-    if (address.country === 'US' && !address.state.trim()) {
-      nextErrors.state = 'State is required.'
+
+    if (isStateRequired(address.country)) {
+      if (!address.state.trim()) nextErrors.state = `${stateFieldLabel(address.country)} is required.`
     }
+
+    if (!address.postalCode.trim()) {
+      nextErrors.postalCode = `${postalCodeLabel(address.country)} is required.`
+    } else if (isIndia(address.country) && !isValidIndiaPin(address.postalCode)) {
+      nextErrors.postalCode = 'Enter a valid 6-digit PIN code.'
+    }
+
+    if (!address.phone.trim()) {
+      nextErrors.phone = `${phoneFieldLabel(address.country)} is required.`
+    } else if (isIndia(address.country) && !isValidIndiaMobile(address.phone)) {
+      nextErrors.phone = 'Enter a valid 10-digit Indian mobile number.'
+    }
+
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }
@@ -212,13 +324,30 @@ export const CheckoutPage: React.FC = () => {
     const result = await validateCheckoutCart({
       items: cartItemsPayload,
       couponCode,
+      shippingMethodId: shippingMethod,
     })
     if (!result.ok) {
       setError(result.message)
       toast.error(result.message)
+      setServerTotals(null)
       return null
     }
-    setDiscountAmount(result.discount)
+    setServerTotals({
+      subtotal: result.subtotal,
+      discount: result.discount,
+      shipping: result.shipping,
+      tax: result.tax,
+      total: result.total,
+      taxImplemented: result.taxImplemented,
+    })
+    if (result.couponCode) {
+      setCouponCode(result.couponCode)
+      try {
+        window.localStorage.setItem(COUPON_CODE_STORAGE_KEY, result.couponCode)
+      } catch {
+        // ignore
+      }
+    }
     setError(null)
     return result
   }
@@ -247,13 +376,35 @@ export const CheckoutPage: React.FC = () => {
       ({
         ...address,
         country: address.country,
+        phone: address.phone,
       }) as Partial<Address>,
     [address],
   )
 
+  const clearCheckoutSession = useCallback(() => {
+    clearCheckoutDraft()
+    try {
+      window.localStorage.removeItem(COUPON_CODE_STORAGE_KEY)
+    } catch {
+      // ignore
+    }
+  }, [])
+
   const initiatePaymentIntent = useCallback(async () => {
+    if (initiatingOnlineRef.current) return
+    initiatingOnlineRef.current = true
+
     try {
       setError(null)
+
+      if (!stripePublishableConfigured) {
+        const message =
+          'Online payment is not configured. Set a valid NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (pk_test_…) and STRIPE_SECRET_KEY (sk_test_…) in your environment.'
+        setError(message)
+        toast.error(message)
+        return
+      }
+
       const valid = await runCartValidation()
       if (!valid) return
 
@@ -262,35 +413,168 @@ export const CheckoutPage: React.FC = () => {
           ...(email ? { customerEmail: email } : {}),
           billingAddress: shippingAddressPayload,
           shippingAddress: shippingAddressPayload,
+          couponCode: couponCode || undefined,
+          shippingMethodId: shippingMethod,
         },
       })) as Record<string, unknown>
 
-      if (payment) {
+      if (payment?.totals && typeof payment.totals === 'object') {
+        const totals = payment.totals as ServerTotals & { total: number }
+        setServerTotals({
+          subtotal: totals.subtotal,
+          discount: totals.discount,
+          shipping: totals.shipping,
+          tax: totals.tax,
+          total: totals.total,
+          taxImplemented: Boolean(totals.taxImplemented),
+        })
+      }
+
+      if (payment?.['clientSecret']) {
         setPaymentData(payment)
-        setStep('payment')
-        window.scrollTo({ top: 0, behavior: 'smooth' })
+      } else {
+        const message = 'Payment initialization failed. Please try again.'
+        setError(message)
+        toast.error(message)
       }
     } catch (err) {
-      const errorData = err instanceof Error ? (() => {
-        try {
-          return JSON.parse(err.message)
-        } catch {
-          return {}
-        }
-      })() : {}
-      let errorMessage = 'An error occurred while initiating payment.'
+      const errorData =
+        err instanceof Error
+          ? (() => {
+              try {
+                return JSON.parse(err.message)
+              } catch {
+                return { message: err.message }
+              }
+            })()
+          : {}
+      let errorMessage = 'Payment initialization failed.'
+      if (typeof errorData?.message === 'string' && errorData.message) {
+        errorMessage = errorData.message
+      }
       if (errorData?.cause?.code === 'OutOfStock') {
         errorMessage = 'One or more items in your cart are out of stock.'
       }
+      // Surface config / invalid-key issues clearly (do not claim payment succeeded).
+      if (
+        typeof errorMessage === 'string' &&
+        (/invalid api key/i.test(errorMessage) ||
+          /sk_test_$/i.test(errorMessage) ||
+          /not configured/i.test(errorMessage))
+      ) {
+        errorMessage =
+          'Online payment is not configured. Set a valid STRIPE_SECRET_KEY and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY in your environment.'
+      }
       setError(errorMessage)
       toast.error(errorMessage)
+      setPaymentData(null)
+    } finally {
+      initiatingOnlineRef.current = false
     }
-  }, [email, initiatePayment, shippingAddressPayload, cartItemsPayload, couponCode])
+  }, [
+    email,
+    initiatePayment,
+    shippingAddressPayload,
+    couponCode,
+    shippingMethod,
+    stripePublishableConfigured,
+    cartItemsPayload,
+  ])
 
   const continueToPayment = () => {
     startTransition(async () => {
+      const valid = await runCartValidation()
+      if (!valid) return
+      setPaymentData(null)
+      setPaymentMethod(null)
+      if (!codIdempotencyKeyRef.current) {
+        codIdempotencyKeyRef.current = crypto.randomUUID()
+      }
+      setStep('payment')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+  }
+
+  const selectPaymentMethod = (method: CheckoutPaymentMethod) => {
+    setPaymentMethod(method)
+    setError(null)
+    if (method === 'cod') {
+      setPaymentData(null)
+      return
+    }
+    if (paymentData?.['clientSecret']) return
+    // Online: create PaymentIntent only after the customer chooses online payment.
+    startTransition(async () => {
       await initiatePaymentIntent()
     })
+  }
+
+  const handlePlaceCodOrder = () => {
+    if (isPlacingCod) return
+    startTransition(async () => {
+      setIsPlacingCod(true)
+      setError(null)
+      try {
+        const valid = await runCartValidation()
+        if (!valid) return
+
+        if (!codIdempotencyKeyRef.current) {
+          codIdempotencyKeyRef.current = crypto.randomUUID()
+        }
+
+        const result = await placeCodOrder({
+          items: cartItemsPayload,
+          couponCode,
+          shippingMethodId: shippingMethod,
+          customerEmail: email,
+          shippingAddress: {
+            firstName: address.firstName,
+            lastName: address.lastName,
+            addressLine1: address.addressLine1,
+            addressLine2: address.addressLine2,
+            city: address.city,
+            state: address.state,
+            postalCode: address.postalCode,
+            country: address.country,
+            phone: address.phone,
+          },
+          idempotencyKey: codIdempotencyKeyRef.current,
+          cartId: cart?.id ?? null,
+        })
+
+        if (!result.ok) {
+          setError(result.message)
+          toast.error(result.message)
+          return
+        }
+
+        clearCart()
+        clearCheckoutSession()
+        setProcessingPayment(true)
+
+        const queryParams = new URLSearchParams()
+        if (email) queryParams.set('email', email)
+        if (result.accessToken) queryParams.set('accessToken', result.accessToken)
+        const qs = queryParams.toString()
+        router.push(`/orders/${result.orderID}${qs ? `?${qs}` : ''}`)
+      } catch {
+        const message = 'Unable to place your COD order. Please try again.'
+        setError(message)
+        toast.error(message)
+      } finally {
+        setIsPlacingCod(false)
+      }
+    })
+  }
+
+  const chromeProps = {
+    subtotal: serverTotals?.subtotal,
+    discountAmount: serverTotals?.discount || 0,
+    shippingAmount: serverTotals?.shipping,
+    taxAmount: serverTotals?.tax || 0,
+    total: serverTotals?.total,
+    shippingMethodId: shippingMethod,
+    taxImplemented: serverTotals?.taxImplemented || false,
   }
 
   if (!stripe) return null
@@ -307,7 +591,7 @@ export const CheckoutPage: React.FC = () => {
   if (cartIsEmpty) {
     return (
       <div className="shop-luxe bg-[var(--elixir-surface,#fcf9f8)]">
-        <CheckoutChrome discountAmount={discountAmount} />
+        <CheckoutChrome {...chromeProps} />
         <div className="mx-auto flex max-w-[640px] flex-col items-start gap-6 px-5 py-16">
           <h1 className="font-[family-name:var(--font-newsreader)] text-3xl font-medium">
             Your cart is empty
@@ -328,7 +612,7 @@ export const CheckoutPage: React.FC = () => {
 
   return (
     <div className="shop-luxe min-h-screen bg-[var(--elixir-surface,#fcf9f8)] text-[var(--elixir-on-surface,#1c1b1b)]">
-      <CheckoutChrome discountAmount={discountAmount} />
+      <CheckoutChrome {...chromeProps} />
 
       <div className="mx-auto w-full max-w-[640px] px-5 py-8 md:py-12">
         <StepNav
@@ -371,7 +655,7 @@ export const CheckoutPage: React.FC = () => {
 
               <CheckoutInput
                 id="email"
-                label="Email or mobile phone number"
+                label="Email"
                 type="email"
                 autoComplete="email"
                 value={email}
@@ -409,7 +693,7 @@ export const CheckoutPage: React.FC = () => {
                         type="button"
                         onClick={() =>
                           setAddress({
-                            country: saved.country || 'US',
+                            country: (saved.country as CountryCode) || DEFAULT_COUNTRY,
                             firstName: saved.firstName || '',
                             lastName: saved.lastName || '',
                             addressLine1: saved.addressLine1 || '',
@@ -437,10 +721,12 @@ export const CheckoutPage: React.FC = () => {
                 onChange={(event) =>
                   setAddress((prev) => ({
                     ...prev,
-                    country: event.target.value as Address['country'],
+                    country: event.target.value as CountryCode,
+                    state: '',
+                    postalCode: '',
                   }))
                 }
-                options={COUNTRY_OPTIONS}
+                options={CHECKOUT_COUNTRY_OPTIONS}
                 error={errors.country}
               />
 
@@ -483,7 +769,7 @@ export const CheckoutPage: React.FC = () => {
 
               <CheckoutInput
                 id="addressLine2"
-                label="Apartment, suite, etc."
+                label={isIndia(address.country) ? 'Apartment, suite, landmark' : 'Apartment, suite, etc.'}
                 optional
                 autoComplete="address-line2"
                 value={address.addressLine2}
@@ -502,23 +788,23 @@ export const CheckoutPage: React.FC = () => {
                   error={errors.city}
                   required
                 />
-                {address.country === 'US' ? (
+                {stateOptions ? (
                   <CheckoutSelect
                     id="state"
-                    label="State"
+                    label={stateFieldLabel(address.country)}
                     value={address.state}
                     onChange={(event) =>
                       setAddress((prev) => ({ ...prev, state: event.target.value }))
                     }
                     options={stateOptions}
-                    placeholder="State"
+                    placeholder={stateFieldLabel(address.country)}
                     error={errors.state}
                   />
                 ) : (
                   <CheckoutInput
                     id="state"
-                    label="State / Province"
-                    optional
+                    label={stateFieldLabel(address.country)}
+                    optional={!isStateRequired(address.country)}
                     value={address.state}
                     onChange={(event) =>
                       setAddress((prev) => ({ ...prev, state: event.target.value }))
@@ -528,8 +814,9 @@ export const CheckoutPage: React.FC = () => {
                 )}
                 <CheckoutInput
                   id="postalCode"
-                  label="ZIP code"
+                  label={postalCodeLabel(address.country)}
                   autoComplete="postal-code"
+                  inputMode={isIndia(address.country) ? 'numeric' : undefined}
                   value={address.postalCode}
                   onChange={(event) =>
                     setAddress((prev) => ({ ...prev, postalCode: event.target.value }))
@@ -538,6 +825,18 @@ export const CheckoutPage: React.FC = () => {
                   required
                 />
               </div>
+
+              <CheckoutInput
+                id="phone"
+                label={phoneFieldLabel(address.country)}
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                value={address.phone}
+                onChange={(event) => setAddress((prev) => ({ ...prev, phone: event.target.value }))}
+                error={errors.phone}
+                required
+              />
             </section>
 
             <button
@@ -560,6 +859,7 @@ export const CheckoutPage: React.FC = () => {
                     Contact
                   </p>
                   <p className="mt-1 text-sm">{email}</p>
+                  {address.phone ? <p className="mt-1 text-sm">{address.phone}</p> : null}
                 </div>
                 <button
                   type="button"
@@ -589,7 +889,7 @@ export const CheckoutPage: React.FC = () => {
                     {address.city}
                     {address.state ? `, ${address.state}` : ''} {address.postalCode}
                     <br />
-                    {address.country}
+                    {getCountryLabel(address.country)}
                   </p>
                 </div>
                 <button
@@ -607,49 +907,45 @@ export const CheckoutPage: React.FC = () => {
                 Shipping method
               </h2>
 
-              <label
-                className={cn(
-                  'flex cursor-pointer items-center justify-between gap-4 rounded-md border px-4 py-4',
-                  shippingMethod === 'standard'
-                    ? 'border-[var(--elixir-on-surface,#1c1b1b)] bg-white'
-                    : 'border-[var(--elixir-outline-variant,#c1c8c7)] bg-white',
-                )}
-              >
-                <span className="flex items-center gap-3 text-sm">
-                  <input
-                    type="radio"
-                    name="shippingMethod"
-                    checked={shippingMethod === 'standard'}
-                    onChange={() => setShippingMethod('standard')}
-                    className="accent-[var(--elixir-primary-container,#0d2b2b)]"
-                  />
-                  Standard (3–5 business days)
-                </span>
-                <span className="text-sm font-medium">Free</span>
-              </label>
-
-              <label
-                className={cn(
-                  'flex cursor-pointer items-center justify-between gap-4 rounded-md border px-4 py-4',
-                  shippingMethod === 'express'
-                    ? 'border-[var(--elixir-on-surface,#1c1b1b)] bg-white'
-                    : 'border-[var(--elixir-outline-variant,#c1c8c7)] bg-white',
-                )}
-              >
-                <span className="flex items-center gap-3 text-sm">
-                  <input
-                    type="radio"
-                    name="shippingMethod"
-                    checked={shippingMethod === 'express'}
-                    onChange={() => setShippingMethod('express')}
-                    className="accent-[var(--elixir-primary-container,#0d2b2b)]"
-                  />
-                  Express (1–2 business days)
-                </span>
-                <span className="text-sm text-[var(--elixir-outline,#717878)]">
-                  Calculated at payment
-                </span>
-              </label>
+              {(Object.keys(SHIPPING_CONFIG.methods) as ShippingMethodId[]).map((methodId) => {
+                const method = SHIPPING_CONFIG.methods[methodId]
+                const display = getShippingDisplay(
+                  Math.max(
+                    0,
+                    (serverTotals?.subtotal || 0) - (serverTotals?.discount || 0),
+                  ),
+                  methodId,
+                )
+                return (
+                  <label
+                    key={methodId}
+                    className={cn(
+                      'flex cursor-pointer items-center justify-between gap-4 rounded-md border px-4 py-4',
+                      shippingMethod === methodId
+                        ? 'border-[var(--elixir-on-surface,#1c1b1b)] bg-white'
+                        : 'border-[var(--elixir-outline-variant,#c1c8c7)] bg-white',
+                    )}
+                  >
+                    <span className="flex items-center gap-3 text-sm">
+                      <input
+                        type="radio"
+                        name="shippingMethod"
+                        checked={shippingMethod === methodId}
+                        onChange={() => setShippingMethod(methodId)}
+                        className="accent-[var(--elixir-primary-container,#0d2b2b)]"
+                      />
+                      {method.label}
+                    </span>
+                    <span className="text-sm font-medium">
+                      {display.amount === 0 ? (
+                        'Free'
+                      ) : (
+                        <Price amount={display.amount} as="span" />
+                      )}
+                    </span>
+                  </label>
+                )
+              })}
             </section>
 
             <button
@@ -658,7 +954,7 @@ export const CheckoutPage: React.FC = () => {
               onClick={continueToPayment}
               className="flex min-h-12 w-full items-center justify-center bg-[var(--elixir-primary,#001515)] text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#164a4a] disabled:opacity-60"
             >
-              {isPending ? 'Preparing payment…' : 'Continue to payment'}
+              {isPending ? 'Validating…' : 'Continue to payment'}
             </button>
           </div>
         ) : null}
@@ -670,6 +966,12 @@ export const CheckoutPage: React.FC = () => {
                 <span className="text-[var(--elixir-outline,#717878)]">Contact</span>
                 <br />
                 {email}
+                {address.phone ? (
+                  <>
+                    <br />
+                    {address.phone}
+                  </>
+                ) : null}
               </p>
               <hr className="my-4 border-[var(--elixir-surface-container,#f0eded)]" />
               <p>
@@ -681,42 +983,154 @@ export const CheckoutPage: React.FC = () => {
               <p>
                 <span className="text-[var(--elixir-outline,#717878)]">Method</span>
                 <br />
-                {shippingMethod === 'standard' ? 'Standard · Free' : 'Express'}
+                {SHIPPING_CONFIG.methods[shippingMethod].label}
+                {serverTotals ? (
+                  <>
+                    {' · '}
+                    {serverTotals.shipping === 0 ? (
+                      'Free'
+                    ) : (
+                      <Price amount={serverTotals.shipping} as="span" />
+                    )}
+                  </>
+                ) : null}
               </p>
             </section>
 
-            <h2 className="font-[family-name:var(--font-newsreader)] text-2xl font-medium">
-              Payment
-            </h2>
+            <section className="flex flex-col gap-4">
+              <h2 className="font-[family-name:var(--font-newsreader)] text-2xl font-medium">
+                Payment method
+              </h2>
 
-            <Suspense fallback={<LoadingSpinner />}>
-              {paymentData?.['clientSecret'] ? (
-                <Elements
-                  options={{
-                    appearance: {
-                      theme: 'stripe',
-                      variables: {
-                        borderRadius: '6px',
-                        colorPrimary: '#0d2b2b',
-                        colorBackground: '#ffffff',
-                        colorDanger: cssVariables.colors.error500,
-                        colorText: '#1c1b1b',
-                        colorTextPlaceholder: '#717878',
-                        fontFamily: 'Inter, sans-serif',
-                        fontSizeBase: '16px',
-                        spacingUnit: '4px',
-                      },
-                    },
-                    clientSecret: paymentData['clientSecret'] as string,
-                  }}
-                  stripe={stripe}
+              {CHECKOUT_PAYMENT_METHODS.map((method) => (
+                <label
+                  key={method.id}
+                  className={cn(
+                    'flex cursor-pointer flex-col gap-1 rounded-md border px-4 py-4',
+                    paymentMethod === method.id
+                      ? 'border-[var(--elixir-on-surface,#1c1b1b)] bg-white'
+                      : 'border-[var(--elixir-outline-variant,#c1c8c7)] bg-white',
+                  )}
                 >
-                  <div className="flex flex-col gap-6">
-                    <CheckoutForm
-                      customerEmail={email}
-                      billingAddress={shippingAddressPayload}
-                      setProcessingPayment={setProcessingPayment}
+                  <span className="flex items-center gap-3 text-sm font-medium">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      checked={paymentMethod === method.id}
+                      onChange={() => selectPaymentMethod(method.id)}
+                      className="accent-[var(--elixir-primary-container,#0d2b2b)]"
                     />
+                    {method.label}
+                  </span>
+                  <span className="pl-7 text-sm text-[var(--elixir-on-surface-variant,#414848)]">
+                    {method.description}
+                  </span>
+                </label>
+              ))}
+            </section>
+
+            {paymentMethod === 'cod' ? (
+              <div className="flex flex-col gap-4">
+                <p className="text-sm text-[var(--elixir-on-surface-variant,#414848)]">
+                  You will pay when your order is delivered.
+                  {serverTotals ? (
+                    <>
+                      {' '}
+                      Amount due on delivery:{' '}
+                      <span className="font-medium text-[var(--elixir-on-surface,#1c1b1b)]">
+                        {formatInrFromPaise(serverTotals.total)}
+                      </span>
+                    </>
+                  ) : null}
+                </p>
+                <button
+                  type="button"
+                  disabled={isPending || isPlacingCod}
+                  onClick={handlePlaceCodOrder}
+                  className="flex min-h-12 w-full items-center justify-center bg-[var(--elixir-primary,#001515)] text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#164a4a] disabled:opacity-60"
+                >
+                  {isPlacingCod || isPending ? 'Placing order…' : 'Place order'}
+                </button>
+                <button
+                  type="button"
+                  className="self-start text-sm underline underline-offset-4"
+                  onClick={() => {
+                    setPaymentData(null)
+                    setStep('shipping')
+                  }}
+                >
+                  Return to shipping
+                </button>
+              </div>
+            ) : null}
+
+            {paymentMethod === 'online' ? (
+              <Suspense fallback={<LoadingSpinner />}>
+                {paymentData?.['clientSecret'] ? (
+                  <Elements
+                    options={{
+                      appearance: {
+                        theme: 'stripe',
+                        variables: {
+                          borderRadius: '6px',
+                          colorPrimary: '#0d2b2b',
+                          colorBackground: '#ffffff',
+                          colorDanger: cssVariables.colors.error500,
+                          colorText: '#1c1b1b',
+                          colorTextPlaceholder: '#717878',
+                          fontFamily: 'Inter, sans-serif',
+                          fontSizeBase: '16px',
+                          spacingUnit: '4px',
+                        },
+                      },
+                      clientSecret: paymentData['clientSecret'] as string,
+                    }}
+                    stripe={stripe}
+                  >
+                    <div className="flex flex-col gap-6">
+                      <CheckoutForm
+                        customerEmail={email}
+                        billingAddress={shippingAddressPayload}
+                        setProcessingPayment={setProcessingPayment}
+                        submitLabel={
+                          serverTotals
+                            ? `Pay ${formatInrFromPaise(serverTotals.total)}`
+                            : 'Pay now'
+                        }
+                        onPaymentSuccess={clearCheckoutSession}
+                      />
+                      <button
+                        type="button"
+                        className="self-start text-sm underline underline-offset-4"
+                        onClick={() => {
+                          setPaymentData(null)
+                          setStep('shipping')
+                        }}
+                      >
+                        Return to shipping
+                      </button>
+                    </div>
+                  </Elements>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <p className="text-sm text-[var(--elixir-on-surface-variant,#414848)]">
+                      {isPending
+                        ? 'Preparing secure payment…'
+                        : error || 'Payment could not be started.'}
+                    </p>
+                    {!isPending ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          startTransition(async () => {
+                            await initiatePaymentIntent()
+                          })
+                        }}
+                        className="inline-flex min-h-12 items-center justify-center bg-[var(--elixir-primary,#001515)] px-6 text-xs font-semibold uppercase tracking-[0.12em] text-white"
+                      >
+                        Try again
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="self-start text-sm underline underline-offset-4"
@@ -728,22 +1142,19 @@ export const CheckoutPage: React.FC = () => {
                       Return to shipping
                     </button>
                   </div>
-                </Elements>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  <p className="text-sm text-[var(--elixir-on-surface-variant,#414848)]">
-                    Payment could not be started.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={continueToPayment}
-                    className="inline-flex min-h-12 items-center justify-center bg-[var(--elixir-primary,#001515)] px-6 text-xs font-semibold uppercase tracking-[0.12em] text-white"
-                  >
-                    Try again
-                  </button>
-                </div>
-              )}
-            </Suspense>
+                )}
+              </Suspense>
+            ) : null}
+
+            {!paymentMethod ? (
+              <button
+                type="button"
+                className="self-start text-sm underline underline-offset-4"
+                onClick={() => setStep('shipping')}
+              >
+                Return to shipping
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>

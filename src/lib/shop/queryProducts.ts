@@ -72,18 +72,9 @@ export function buildShopWhere(params: ShopQueryParams): Where {
 
   if (sale === 'true' || sale === '1') {
     and.push({
-      or: [
-        {
-          badge: {
-            equals: 'sale',
-          },
-        },
-        {
-          compareAtPriceInUSD: {
-            greater_than: 0,
-          },
-        },
-      ],
+      badge: {
+        equals: 'sale',
+      },
     })
   }
 
@@ -97,7 +88,7 @@ export function buildShopWhere(params: ShopQueryParams): Where {
 
   if (minPrice && !Number.isNaN(Number(minPrice))) {
     and.push({
-      priceInUSD: {
+      priceInINR: {
         greater_than_equal: Number(minPrice),
       },
     })
@@ -105,7 +96,7 @@ export function buildShopWhere(params: ShopQueryParams): Where {
 
   if (maxPrice && !Number.isNaN(Number(maxPrice))) {
     and.push({
-      priceInUSD: {
+      priceInINR: {
         less_than_equal: Number(maxPrice),
       },
     })
@@ -139,8 +130,7 @@ export async function queryShopProducts(params: ShopQueryParams = {}) {
       slug: true,
       gallery: true,
       categories: true,
-      priceInUSD: true,
-      compareAtPriceInUSD: true,
+      priceInINR: true,
       badge: true,
       rating: true,
       featured: true,

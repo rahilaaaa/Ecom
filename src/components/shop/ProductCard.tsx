@@ -236,13 +236,6 @@ export function ProductCard({ product, className, layout = 'grid', onRemoved }: 
                 )}
               />
             ) : null}
-            {product.isOnSale && typeof product.compareAtPrice === 'number' ? (
-              <Price
-                amount={product.compareAtPrice}
-                as="span"
-                className="font-[family-name:var(--font-inter)] text-sm text-[var(--elixir-outline,#717878)] line-through"
-              />
-            ) : null}
           </div>
         </div>
       )}

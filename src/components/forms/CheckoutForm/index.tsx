@@ -13,12 +13,17 @@ type Props = {
   billingAddress?: Partial<Address>
   shippingAddress?: Partial<Address>
   setProcessingPayment: React.Dispatch<React.SetStateAction<boolean>>
+  onPaymentSuccess?: () => void
+  /** e.g. "Pay ₹2,800.00" — falls back to "Pay now" */
+  submitLabel?: string
 }
 
 export const CheckoutForm: React.FC<Props> = ({
   customerEmail,
   billingAddress,
   setProcessingPayment,
+  onPaymentSuccess,
+  submitLabel,
 }) => {
   const stripe = useStripe()
   const elements = useElements()
@@ -91,6 +96,7 @@ export const CheckoutForm: React.FC<Props> = ({
 
                 // Clear the cart after successful payment
                 clearCart()
+                onPaymentSuccess?.()
 
                 // Redirect to order confirmation page
                 router.push(redirectUrl)
@@ -129,6 +135,7 @@ export const CheckoutForm: React.FC<Props> = ({
       confirmOrder,
       clearCart,
       router,
+      onPaymentSuccess,
     ],
   )
 
@@ -138,7 +145,7 @@ export const CheckoutForm: React.FC<Props> = ({
       <PaymentElement />
       <div className="mt-8 flex gap-4">
         <Button disabled={!stripe || isLoading} type="submit" variant="default">
-          {isLoading ? 'Loading...' : 'Pay now'}
+          {isLoading ? 'Processing…' : submitLabel || 'Pay now'}
         </Button>
       </div>
     </form>

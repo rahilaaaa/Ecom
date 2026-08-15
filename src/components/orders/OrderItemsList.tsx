@@ -3,6 +3,7 @@ import React from 'react'
 
 import { Media } from '@/components/Media'
 import { Price } from '@/components/Price'
+import { getLineUnitPrice } from '@/lib/currency'
 import type { Media as MediaType, Order, Product, Variant } from '@/payload-types'
 import { cn } from '@/utilities/cn'
 
@@ -40,9 +41,11 @@ function resolveImage(product: Product | null, variant: Variant | null): MediaTy
 
 function lineUnitPrice(item: OrderItem, product: Product | null, variant: Variant | null): number | null {
   if (typeof item.unitPrice === 'number') return item.unitPrice
-  if (typeof variant?.priceInUSD === 'number') return variant.priceInUSD
-  if (typeof product?.priceInUSD === 'number') return product.priceInUSD
-  return null
+  return getLineUnitPrice({
+    product,
+    variant,
+    enableVariants: Boolean(product?.enableVariants && variant),
+  })
 }
 
 export function OrderItemsList({ items, currency, className }: Props) {

@@ -13,8 +13,8 @@ export const defaultSort: SortFilterItem = {
 export const sorting: SortFilterItem[] = [
   defaultSort,
   { slug: '-createdAt', reverse: true, title: 'Newest' },
-  { slug: 'priceInUSD', reverse: false, title: 'Price: Low to high' },
-  { slug: '-priceInUSD', reverse: true, title: 'Price: High to low' },
+  { slug: 'priceInINR', reverse: false, title: 'Price: Low to high' },
+  { slug: '-priceInINR', reverse: true, title: 'Price: High to low' },
   { slug: '-rating', reverse: true, title: 'Rating' },
 ]
 
@@ -22,6 +22,6 @@ export const sorting: SortFilterItem[] = [
 export const sortingLegacy: SortFilterItem[] = [
   { slug: null, reverse: false, title: 'Alphabetic A-Z' },
   { slug: '-createdAt', reverse: true, title: 'Latest arrivals' },
-  { slug: 'priceInUSD', reverse: false, title: 'Price: Low to high' },
-  { slug: '-priceInUSD', reverse: true, title: 'Price: High to low' },
+  { slug: 'priceInINR', reverse: false, title: 'Price: Low to high' },
+  { slug: '-priceInINR', reverse: true, title: 'Price: High to low' },
 ]

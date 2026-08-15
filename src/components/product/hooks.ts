@@ -4,6 +4,9 @@ import type { Product, Variant } from '@/payload-types'
 import { useSearchParams } from 'next/navigation'
 import { useMemo } from 'react'
 
+import { findVariantForOptions } from '@/lib/product/variantGallery'
+import { getLineUnitPrice, getUnitPrice } from '@/lib/currency'
+
 export function useSelectedVariant(product: Product): Variant | undefined {
   const searchParams = useSearchParams()
   const variants = product.variants?.docs || []
@@ -12,18 +15,29 @@ export function useSelectedVariant(product: Product): Variant | undefined {
     if (!product.enableVariants || !variants.length) return undefined
 
     const variantId = searchParams.get('variant')
-    const match = variants.find((variant) => {
-      if (typeof variant === 'object') return String(variant.id) === variantId
-      return String(variant) === variantId
-    })
+    if (variantId) {
+      const match = variants.find((variant) => {
+        if (typeof variant === 'object') return String(variant.id) === variantId
+        return String(variant) === variantId
+      })
+      if (match && typeof match === 'object') return match
+    }
 
-    return match && typeof match === 'object' ? match : undefined
-  }, [product.enableVariants, searchParams, variants])
+    const selectedIds: string[] = []
+    for (const type of product.variantTypes || []) {
+      if (typeof type !== 'object' || !type?.name) continue
+      const value = searchParams.get(type.name)
+      if (value) selectedIds.push(value)
+    }
+
+    if (!selectedIds.length) return undefined
+
+    return findVariantForOptions(product, selectedIds)
+  }, [product, searchParams, variants])
 }
 
 export function useProductPrice(product: Product): {
   amount: number | null
-  compareAt: number | null
   isOnSale: boolean
   lowestAmount: number | null
   highestAmount: number | null
@@ -33,27 +47,27 @@ export function useProductPrice(product: Product): {
   const hasVariants = Boolean(product.enableVariants && product.variants?.docs?.length)
 
   return useMemo(() => {
-    const compareAt =
-      typeof product.compareAtPriceInUSD === 'number' ? product.compareAtPriceInUSD : null
-
     if (hasVariants) {
       const variants = (product.variants?.docs || []).filter(
         (variant): variant is Variant => typeof variant === 'object' && Boolean(variant),
       )
 
       const prices = variants
-        .map((variant) => variant.priceInUSD)
+        .map((variant) => getUnitPrice(variant))
         .filter((price): price is number => typeof price === 'number')
 
       const lowestAmount = prices.length ? Math.min(...prices) : null
       const highestAmount = prices.length ? Math.max(...prices) : null
 
-      if (selectedVariant && typeof selectedVariant.priceInUSD === 'number') {
-        const amount = selectedVariant.priceInUSD
+      if (selectedVariant) {
+        const amount = getLineUnitPrice({
+          product,
+          variant: selectedVariant,
+          enableVariants: true,
+        })
         return {
           amount,
-          compareAt: compareAt && compareAt > amount ? compareAt : null,
-          isOnSale: Boolean(compareAt && compareAt > amount),
+          isOnSale: product.badge === 'sale',
           lowestAmount,
           highestAmount,
           hasRange: false,
@@ -62,8 +76,7 @@ export function useProductPrice(product: Product): {
 
       return {
         amount: lowestAmount,
-        compareAt: null,
-        isOnSale: false,
+        isOnSale: product.badge === 'sale',
         lowestAmount,
         highestAmount,
         hasRange: Boolean(
@@ -72,11 +85,10 @@ export function useProductPrice(product: Product): {
       }
     }
 
-    const amount = typeof product.priceInUSD === 'number' ? product.priceInUSD : null
+    const amount = getUnitPrice(product)
     return {
       amount,
-      compareAt: compareAt && amount !== null && compareAt > amount ? compareAt : null,
-      isOnSale: Boolean(compareAt && amount !== null && compareAt > amount),
+      isOnSale: product.badge === 'sale',
       lowestAmount: amount,
       highestAmount: amount,
       hasRange: false,

@@ -47,14 +47,6 @@ export function ProductInfo({ product, showDesktopActions = true }: Props) {
               )}
             />
           ) : null}
-
-          {price.isOnSale && typeof price.compareAt === 'number' ? (
-            <Price
-              amount={price.compareAt}
-              as="span"
-              className="font-[family-name:var(--font-inter)] text-sm text-[var(--elixir-outline,#717878)] line-through"
-            />
-          ) : null}
         </div>
       </div>
 
