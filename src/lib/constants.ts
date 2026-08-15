@@ -5,14 +5,23 @@ export type SortFilterItem = {
 }
 
 export const defaultSort: SortFilterItem = {
-  slug: null,
-  reverse: false,
-  title: 'Alphabetic A-Z',
+  slug: '-featured,-createdAt',
+  reverse: true,
+  title: 'Featured',
 }
 
 export const sorting: SortFilterItem[] = [
   defaultSort,
+  { slug: '-createdAt', reverse: true, title: 'Newest' },
+  { slug: 'priceInUSD', reverse: false, title: 'Price: Low to high' },
+  { slug: '-priceInUSD', reverse: true, title: 'Price: High to low' },
+  { slug: '-rating', reverse: true, title: 'Rating' },
+]
+
+/** @deprecated Prefer `sorting` — kept for any legacy A–Z references */
+export const sortingLegacy: SortFilterItem[] = [
+  { slug: null, reverse: false, title: 'Alphabetic A-Z' },
   { slug: '-createdAt', reverse: true, title: 'Latest arrivals' },
-  { slug: 'priceInUSD', reverse: false, title: 'Price: Low to high' }, // asc
+  { slug: 'priceInUSD', reverse: false, title: 'Price: Low to high' },
   { slug: '-priceInUSD', reverse: true, title: 'Price: High to low' },
 ]

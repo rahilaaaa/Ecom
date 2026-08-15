@@ -123,6 +123,24 @@
   --success: oklch(78% 0.08 200deg);
   --warning: oklch(89% 0.1 75deg);
   --error: oklch(75% 0.15 25deg);
+
+  /* Luxe Minimalist Commerce (ELIXIR) */
+  --elixir-surface: #fcf9f8;
+  --elixir-surface-dim: #dcd9d9;
+  --elixir-surface-bright: #fcf9f8;
+  --elixir-surface-container-lowest: #ffffff;
+  --elixir-surface-container-low: #f6f3f2;
+  --elixir-surface-container: #f0eded;
+  --elixir-surface-container-high: #eae7e7;
+  --elixir-surface-container-highest: #e5e2e1;
+  --elixir-on-surface: #1c1b1b;
+  --elixir-on-surface-variant: #414848;
+  --elixir-outline: #717878;
+  --elixir-outline-variant: #c1c8c7;
+  --elixir-primary: #001515;
+  --elixir-on-primary: #ffffff;
+  --elixir-primary-container: #0d2b2b;
+  --elixir-on-primary-container: #769393;
 }
 
 [data-theme='dark'] {
@@ -221,6 +239,17 @@ html {
 html[data-theme='dark'],
 html[data-theme='light'] {
   opacity: initial;
+}
+
+.shop-luxe {
+  font-family: var(--font-inter), var(--font-geist-sans), sans-serif;
+  min-height: 60vh;
+}
+
+.shop-luxe h1,
+.shop-luxe h2,
+.shop-luxe h3 {
+  font-family: var(--font-newsreader), Georgia, serif;
 }
 
 a,

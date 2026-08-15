@@ -7,7 +7,7 @@ import { LogoutPage } from './LogoutPage'
 
 export default async function Logout() {
   return (
-    <div className="container max-w-lg my-16">
+    <div className="mx-auto max-w-lg px-5 py-16 text-[var(--elixir-on-surface,#1c1b1b)]">
       <LogoutPage />
     </div>
   )

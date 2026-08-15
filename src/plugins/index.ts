@@ -15,6 +15,7 @@ import { adminOnlyFieldAccess } from '@/access/adminOnlyFieldAccess'
 import { customerOnlyFieldAccess } from '@/access/customerOnlyFieldAccess'
 import { isAdmin } from '@/access/isAdmin'
 import { isDocumentOwner } from '@/access/isDocumentOwner'
+import { overrideOrdersCollection } from '@/lib/orders/overrideOrdersCollection'
 
 const generateTitle: GenerateTitle<Product | Page> = ({ doc }) => {
   return doc?.title ? `${doc.title} | Payload Ecommerce Template` : 'Payload Ecommerce Template'
@@ -88,32 +89,8 @@ export const plugins: Plugin[] = [
       slug: 'users',
     },
     orders: {
-      ordersCollectionOverride: ({ defaultCollection }) => ({
-        ...defaultCollection,
-        fields: [
-          ...defaultCollection.fields,
-          {
-            name: 'accessToken',
-            type: 'text',
-            unique: true,
-            index: true,
-            admin: {
-              position: 'sidebar',
-              readOnly: true,
-            },
-            hooks: {
-              beforeValidate: [
-                ({ value, operation }) => {
-                  if (operation === 'create' || !value) {
-                    return crypto.randomUUID()
-                  }
-                  return value
-                },
-              ],
-            },
-          },
-        ],
-      }),
+      ordersCollectionOverride: ({ defaultCollection }) =>
+        overrideOrdersCollection(defaultCollection),
     },
     payments: {
       paymentMethods: [

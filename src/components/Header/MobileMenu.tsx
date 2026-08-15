@@ -47,27 +47,38 @@ export function MobileMenu({ menu }: Props) {
 
   return (
     <Sheet onOpenChange={setIsOpen} open={isOpen}>
-      <SheetTrigger className="relative flex h-11 w-11 items-center justify-center rounded-md border border-neutral-200 text-black transition-colors dark:border-neutral-700 dark:bg-black dark:text-white">
-        <MenuIcon className="h-4" />
+      <SheetTrigger className="relative flex h-12 w-12 items-center justify-center text-[var(--elixir-on-surface,#1c1b1b)] transition hover:opacity-70">
+        <MenuIcon className="h-5 w-5" strokeWidth={1.5} aria-hidden />
+        <span className="sr-only">Open menu</span>
       </SheetTrigger>
 
-      <SheetContent side="left" className="px-4">
+      <SheetContent side="left" className="bg-[var(--elixir-surface,#fcf9f8)] px-4">
         <SheetHeader className="px-0 pt-4 pb-0">
-          <SheetTitle>My Store</SheetTitle>
+          <SheetTitle className="font-[family-name:var(--font-newsreader)] text-xl tracking-[0.08em]">
+            ELIXIR
+          </SheetTitle>
 
           <SheetDescription />
         </SheetHeader>
 
         <div className="py-4">
-          {menu?.length ? (
-            <ul className="flex w-full flex-col">
-              {menu.map((item) => (
-                <li className="py-2" key={item.id}>
-                  <CMSLink {...item.link} appearance="link" />
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <ul className="flex w-full flex-col">
+            <li className="py-2">
+              <Link href="/search" className="text-[var(--elixir-on-surface,#1c1b1b)]">
+                Discover
+              </Link>
+            </li>
+            <li className="py-2">
+              <Link href="/shop" className="text-[var(--elixir-on-surface,#1c1b1b)]">
+                Shop All
+              </Link>
+            </li>
+            {menu?.map((item) => (
+              <li className="py-2" key={item.id}>
+                <CMSLink {...item.link} appearance="link" />
+              </li>
+            ))}
+          </ul>
         </div>
 
         {user ? (

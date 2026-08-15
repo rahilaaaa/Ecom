@@ -118,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const fetchMe = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/api/users/me`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/api/users/me?depth=1`, {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',

@@ -50,8 +50,12 @@ export const ProductsCollection: CollectionOverride = ({ defaultCollection }) =>
     enableVariants: true,
     gallery: true,
     priceInUSD: true,
+    compareAtPriceInUSD: true,
     inventory: true,
     meta: true,
+    featured: true,
+    badge: true,
+    rating: true,
   },
   fields: [
     { name: 'title', type: 'text', required: true },
@@ -206,6 +210,47 @@ export const ProductsCollection: CollectionOverride = ({ defaultCollection }) =>
       },
       hasMany: true,
       relationTo: 'categories',
+    },
+    {
+      name: 'featured',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: {
+        position: 'sidebar',
+        description: 'Featured products appear first when sorting by Featured.',
+      },
+    },
+    {
+      name: 'badge',
+      type: 'select',
+      defaultValue: 'none',
+      options: [
+        { label: 'None', value: 'none' },
+        { label: 'New', value: 'new' },
+        { label: 'Sale', value: 'sale' },
+      ],
+      admin: {
+        position: 'sidebar',
+      },
+    },
+    {
+      name: 'rating',
+      type: 'number',
+      min: 0,
+      max: 5,
+      admin: {
+        position: 'sidebar',
+        step: 0.1,
+        description: 'Average customer rating (0–5).',
+      },
+    },
+    {
+      name: 'compareAtPriceInUSD',
+      type: 'number',
+      admin: {
+        position: 'sidebar',
+        description: 'Original price before discount (in cents). Used for sale styling.',
+      },
     },
     slugField(),
   ],

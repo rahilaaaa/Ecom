@@ -9,6 +9,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 import { adminOnly } from '@/access/adminOnly'
+import { adminOrLoggedIn } from '@/access/adminOrLoggedIn'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -19,7 +20,8 @@ export const Media: CollectionConfig = {
   },
   slug: 'media',
   access: {
-    create: adminOnly,
+    // Authenticated customers may upload a profile photo; content edits stay admin-only.
+    create: adminOrLoggedIn,
     delete: adminOnly,
     read: () => true,
     update: adminOnly,

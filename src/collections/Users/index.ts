@@ -32,6 +32,14 @@ export const Users: CollectionConfig = {
       type: 'text',
     },
     {
+      name: 'avatar',
+      type: 'upload',
+      relationTo: 'media',
+      admin: {
+        description: 'Optional profile photo shown on the customer account page.',
+      },
+    },
+    {
       name: 'roles',
       type: 'select',
       access: {
@@ -83,6 +91,16 @@ export const Users: CollectionConfig = {
       admin: {
         allowCreate: false,
         defaultColumns: ['id'],
+      },
+    },
+    {
+      name: 'wishlist',
+      type: 'relationship',
+      relationTo: 'products',
+      hasMany: true,
+      admin: {
+        position: 'sidebar',
+        description: 'Saved products for this customer.',
       },
     },
   ],

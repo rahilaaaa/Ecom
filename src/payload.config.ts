@@ -15,11 +15,14 @@ import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 
 import { Categories } from '@/collections/Categories'
+import { Coupons } from '@/collections/Coupons'
 import { Media } from '@/collections/Media'
 import { Pages } from '@/collections/Pages'
 import { Users } from '@/collections/Users'
 import { Footer } from '@/globals/Footer'
 import { Header } from '@/globals/Header'
+import { Homepage } from '@/globals/Homepage'
+import { Discover } from '@/globals/Discover'
 import { plugins } from './plugins'
 
 const filename = fileURLToPath(import.meta.url)
@@ -37,7 +40,7 @@ export default buildConfig({
     },
     user: Users.slug,
   },
-  collections: [Users, Pages, Categories, Media],
+  collections: [Users, Pages, Categories, Media, Coupons],
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
@@ -80,7 +83,7 @@ export default buildConfig({
   }),
   //email: nodemailerAdapter(),
   endpoints: [],
-  globals: [Header, Footer],
+  globals: [Header, Footer, Homepage, Discover],
   plugins,
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {

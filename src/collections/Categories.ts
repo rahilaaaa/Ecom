@@ -21,6 +21,29 @@ export const Categories: CollectionConfig = {
       type: 'text',
       required: true,
     },
+    {
+      name: 'image',
+      type: 'upload',
+      relationTo: 'media',
+      admin: {
+        description: 'Image used for Curated For You and category cards.',
+      },
+    },
+    {
+      name: 'description',
+      type: 'text',
+      admin: {
+        description: 'Short supporting line for Discover category cards.',
+      },
+    },
+    {
+      name: 'curated',
+      type: 'checkbox',
+      defaultValue: true,
+      admin: {
+        description: 'Show this category in the homepage Curated For You row.',
+      },
+    },
     slugField({
       position: undefined,
     }),

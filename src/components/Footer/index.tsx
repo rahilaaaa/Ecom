@@ -1,64 +1,107 @@
-import type { Footer } from '@/payload-types'
+import type { Footer as FooterType } from '@/payload-types'
 
-import { FooterMenu } from '@/components/Footer/menu'
+import { CMSLink } from '@/components/Link'
 import { ThemeSelector } from '@/providers/Theme/ThemeSelector'
 import { getCachedGlobal } from '@/utilities/getGlobals'
 import Link from 'next/link'
 import React, { Suspense } from 'react'
-import { LogoIcon } from '@/components/icons/logo'
 
 const { COMPANY_NAME, SITE_NAME } = process.env
+const brandName = SITE_NAME || COMPANY_NAME || 'ELIXIR'
 
 export async function Footer() {
-  const footer: Footer = await getCachedGlobal('footer', 1)()
-  const menu = footer.navItems || []
+  const footer: FooterType = await getCachedGlobal('footer', 1)()
   const currentYear = new Date().getFullYear()
-  const copyrightDate = 2023 + (currentYear > 2023 ? `-${currentYear}` : '')
-  const skeleton = 'w-full h-6 animate-pulse rounded bg-neutral-200 dark:bg-neutral-700'
-
-  const copyrightName = COMPANY_NAME || SITE_NAME || ''
+  const customerCare = footer.customerCare?.length ? footer.customerCare : null
+  const legal = footer.legal?.length ? footer.legal : null
+  const legacy = footer.navItems || []
 
   return (
-    <footer className="text-sm text-neutral-500 dark:text-neutral-400">
-      <div className="container">
-        <div className="flex w-full flex-col gap-6 border-t border-neutral-200 py-12 text-sm md:flex-row md:gap-12 dark:border-neutral-700">
-          <div>
-            <Link className="flex items-center gap-2 text-black md:pt-1 dark:text-white" href="/">
-              <LogoIcon className="w-6" />
-              <span className="sr-only">{SITE_NAME}</span>
+    <footer className="bg-[var(--elixir-surface-container-high,#eae7e7)] text-sm text-[var(--elixir-on-surface-variant,#414848)]">
+      <div className="mx-auto w-full max-w-[1280px] px-5 py-14 md:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-12 lg:gap-12">
+          <div className="lg:col-span-5">
+            <Link
+              className="font-[family-name:var(--font-newsreader)] text-xl font-medium tracking-[0.08em] text-[var(--elixir-on-surface,#1c1b1b)]"
+              href="/"
+            >
+              {brandName}
             </Link>
+            <p className="mt-4 max-w-sm text-sm leading-relaxed">
+              {footer.description ||
+                'Redefining modern minimalism through emotional design and uncompromising quality.'}
+            </p>
           </div>
-          <Suspense
-            fallback={
-              <div className="flex h-[188px] w-[200px] flex-col gap-2">
-                <div className={skeleton} />
-                <div className={skeleton} />
-                <div className={skeleton} />
-                <div className={skeleton} />
-                <div className={skeleton} />
-                <div className={skeleton} />
-              </div>
-            }
-          >
-            <FooterMenu menu={menu} />
-          </Suspense>
-          <div className="md:ml-auto flex flex-col gap-4 items-end">
+
+          <div className="lg:col-span-3">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--elixir-on-surface,#1c1b1b)]">
+              Customer Care
+            </h3>
+            <Suspense fallback={null}>
+              <ul className="flex flex-col gap-3">
+                {(customerCare || legacy.slice(0, 3)).map((item) => (
+                  <li key={item.id}>
+                    <CMSLink
+                      appearance="link"
+                      className="text-[var(--elixir-on-surface-variant,#414848)] hover:text-[var(--elixir-on-surface,#1c1b1b)]"
+                      {...item.link}
+                    />
+                  </li>
+                ))}
+                {!customerCare && !legacy.length ? (
+                  <>
+                    <li>
+                      <Link href="/shop">Shipping</Link>
+                    </li>
+                    <li>
+                      <Link href="/shop">Returns</Link>
+                    </li>
+                    <li>
+                      <Link href="/login">Contact Us</Link>
+                    </li>
+                  </>
+                ) : null}
+              </ul>
+            </Suspense>
+          </div>
+
+          <div className="lg:col-span-3">
+            <h3 className="mb-4 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--elixir-on-surface,#1c1b1b)]">
+              Legal
+            </h3>
+            <ul className="flex flex-col gap-3">
+              {(legal || legacy.slice(3)).map((item) => (
+                <li key={item.id}>
+                  <CMSLink
+                    appearance="link"
+                    className="text-[var(--elixir-on-surface-variant,#414848)] hover:text-[var(--elixir-on-surface,#1c1b1b)]"
+                    {...item.link}
+                  />
+                </li>
+              ))}
+              {!legal && legacy.length <= 3 ? (
+                <>
+                  <li>
+                    <Link href="/shop">Privacy Policy</Link>
+                  </li>
+                  <li>
+                    <Link href="/shop">Terms of Service</Link>
+                  </li>
+                </>
+              ) : null}
+            </ul>
+          </div>
+
+          <div className="lg:col-span-1 lg:justify-self-end">
             <ThemeSelector />
           </div>
         </div>
       </div>
-      <div className="border-t border-neutral-200 py-6 text-sm dark:border-neutral-700">
-        <div className="container mx-auto flex w-full flex-col items-center gap-1 md:flex-row md:gap-0">
+
+      <div className="border-t border-[var(--elixir-outline-variant,#c1c8c7)] py-6">
+        <div className="mx-auto w-full max-w-[1280px] px-5 text-center md:px-6 lg:px-8">
           <p>
-            &copy; {copyrightDate} {copyrightName}
-            {copyrightName.length && !copyrightName.endsWith('.') ? '.' : ''} All rights reserved.
-          </p>
-          <hr className="mx-4 hidden h-4 w-px border-l border-neutral-400 md:inline-block" />
-          <p>Designed in Michigan</p>
-          <p className="md:ml-auto">
-            <a className="text-black dark:text-white" href="https://payloadcms.com">
-              Crafted by Payload
-            </a>
+            &copy; {currentYear} {brandName} Boutique. All rights reserved.
           </p>
         </div>
       </div>

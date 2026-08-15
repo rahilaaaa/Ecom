@@ -1,45 +1,31 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import type { Product, Variant } from '@/payload-types'
-
+import type { Product } from '@/payload-types'
 import { useCart } from '@payloadcms/plugin-ecommerce/client/react'
 import clsx from 'clsx'
-import { useSearchParams } from 'next/navigation'
 import React, { useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
+
+import { useSelectedVariant } from '@/components/product/hooks'
+
 type Props = {
   product: Product
+  className?: string
 }
 
-export function AddToCart({ product }: Props) {
+export function AddToCart({ product, className }: Props) {
   const { addItem, cart, isLoading } = useCart()
-  const searchParams = useSearchParams()
-
-  const variants = product.variants?.docs || []
-
-  const selectedVariant = useMemo<Variant | undefined>(() => {
-    if (product.enableVariants && variants.length) {
-      const variantId = searchParams.get('variant')
-
-      const validVariant = variants.find((variant) => {
-        if (typeof variant === 'object') {
-          return String(variant.id) === variantId
-        }
-        return String(variant) === variantId
-      })
-
-      if (validVariant && typeof validVariant === 'object') {
-        return validVariant
-      }
-    }
-
-    return undefined
-  }, [product.enableVariants, searchParams, variants])
+  const selectedVariant = useSelectedVariant(product)
 
   const addToCart = useCallback(
     (e: React.FormEvent<HTMLButtonElement>) => {
       e.preventDefault()
+
+      if (product.enableVariants && !selectedVariant) {
+        toast.error('Please select your options before continuing.')
+        return
+      }
 
       addItem({
         product: product.id,
@@ -66,11 +52,11 @@ export function AddToCart({ product }: Props) {
         }
         return true
       }
+      return false
     })
 
     if (existingItem) {
-      const existingQuantity = existingItem.quantity
-
+      const existingQuantity = existingItem.quantity || 0
       if (product.enableVariants) {
         return existingQuantity >= (selectedVariant?.inventory || 0)
       }
@@ -78,17 +64,10 @@ export function AddToCart({ product }: Props) {
     }
 
     if (product.enableVariants) {
-      if (!selectedVariant) {
-        return true
-      }
-
-      if (selectedVariant.inventory === 0) {
-        return true
-      }
-    } else {
-      if (product.inventory === 0) {
-        return true
-      }
+      if (!selectedVariant) return true
+      if (!selectedVariant.inventory || selectedVariant.inventory <= 0) return true
+    } else if (!product.inventory || product.inventory <= 0) {
+      return true
     }
 
     return false
@@ -97,8 +76,8 @@ export function AddToCart({ product }: Props) {
   return (
     <Button
       aria-label="Add to cart"
-      variant={'outline'}
-      className={clsx({
+      variant="outline"
+      className={clsx(className, {
         'hover:opacity-90': true,
       })}
       disabled={disabled || isLoading}
