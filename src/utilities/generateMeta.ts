@@ -7,11 +7,19 @@ import { mergeOpenGraph } from './mergeOpenGraph'
 export const generateMeta = async (args: { doc: Page | Product }): Promise<Metadata> => {
   const { doc } = args || {}
 
-  const ogImage =
+  const imageUrl =
     typeof doc?.meta?.image === 'object' &&
     doc.meta.image !== null &&
     'url' in doc.meta.image &&
-    `${process.env.NEXT_PUBLIC_SERVER_URL}${doc.meta.image.url}`
+    typeof doc.meta.image.url === 'string'
+      ? doc.meta.image.url
+      : null
+
+  const ogImage = imageUrl
+    ? imageUrl.startsWith('http://') || imageUrl.startsWith('https://')
+      ? imageUrl
+      : `${process.env.NEXT_PUBLIC_SERVER_URL}${imageUrl}`
+    : undefined
 
   return {
     description: doc?.meta?.description,

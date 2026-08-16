@@ -1,6 +1,6 @@
 import { formBuilderPlugin } from '@payloadcms/plugin-form-builder'
 import { seoPlugin } from '@payloadcms/plugin-seo'
-import { vercelBlobStorage } from '@payloadcms/storage-vercel-blob'
+import { s3Storage } from '@payloadcms/storage-s3'
 import { Plugin } from 'payload'
 import { GenerateTitle, GenerateURL } from '@payloadcms/plugin-seo/types'
 import { FixedToolbarFeature, HeadingFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
@@ -28,6 +28,44 @@ const generateURL: GenerateURL<Product | Page> = ({ doc }) => {
 
   return doc?.slug ? `${url}/${doc.slug}` : url
 }
+
+const getR2StoragePlugin = (): Plugin | null => {
+  const bucket = process.env.R2_BUCKET?.trim()
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim()
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY?.trim()
+  const endpoint = process.env.R2_ENDPOINT?.trim()
+  const publicUrl = process.env.R2_PUBLIC_URL?.trim().replace(/\/$/, '')
+
+  if (!bucket || !accessKeyId || !secretAccessKey || !endpoint || !publicUrl) {
+    return null
+  }
+
+  return s3Storage({
+    collections: {
+      media: {
+        disablePayloadAccessControl: true,
+        generateFileURL: ({ filename, prefix }) => {
+          const key = prefix ? `${prefix}/${filename}` : filename
+          return `${publicUrl}/${key}`
+        },
+      },
+    },
+    bucket,
+    config: {
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+      region: 'auto',
+      endpoint,
+      forcePathStyle: true,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
+    },
+  })
+}
+
+const r2StoragePlugin = getR2StoragePlugin()
 
 export const plugins: Plugin[] = [
   seoPlugin({
@@ -114,14 +152,5 @@ export const plugins: Plugin[] = [
       },
     },
   }),
-  ...(process.env.VERCEL && process.env.BLOB_READ_WRITE_TOKEN
-    ? [
-        vercelBlobStorage({
-          collections: {
-            media: true,
-          },
-          token: process.env.BLOB_READ_WRITE_TOKEN,
-        }),
-      ]
-    : []),
+  ...(r2StoragePlugin ? [r2StoragePlugin] : []),
 ]
