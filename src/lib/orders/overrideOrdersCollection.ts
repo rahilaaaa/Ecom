@@ -3,6 +3,7 @@ import { APIError } from 'payload'
 
 import type { Product, Variant } from '@/payload-types'
 import { getLineUnitPrice, getUnitPrice } from '@/lib/currency'
+import { isOnlinePaymentEnabled, ONLINE_PAYMENT_UNAVAILABLE_MESSAGE } from '@/lib/checkout/paymentConfig'
 import { DEFAULT_SHIPPING_METHOD, calculateShippingAmount } from '@/lib/checkout/shippingConfig'
 import { addBusinessDays } from '@/lib/orders/deliveryEstimate'
 
@@ -57,6 +58,14 @@ function enrichFields(fields: Field[]): Field[] {
 
 const snapshotOrderPricing: CollectionBeforeChangeHook = async ({ data, req, operation }) => {
   if (!data || (operation !== 'create' && operation !== 'update')) return data
+
+  if (
+    operation === 'create' &&
+    data.paymentMethod === 'stripe' &&
+    !isOnlinePaymentEnabled()
+  ) {
+    throw new APIError(ONLINE_PAYMENT_UNAVAILABLE_MESSAGE, 400)
+  }
 
   const items = Array.isArray(data.items) ? [...data.items] : []
 

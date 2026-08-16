@@ -513,22 +513,36 @@ export const seed = async ({
           {
             link: {
               type: 'custom',
-              label: 'Home',
-              url: '/',
+              label: 'New Arrivals',
+              url: '/shop?badge=new',
             },
           },
           {
             link: {
               type: 'custom',
-              label: 'Shop',
+              label: 'Women',
+              url: '/shop?category=women',
+            },
+          },
+          {
+            link: {
+              type: 'custom',
+              label: 'Men',
+              url: '/shop?category=men',
+            },
+          },
+          {
+            link: {
+              type: 'custom',
+              label: 'Collections',
               url: '/shop',
             },
           },
           {
             link: {
               type: 'custom',
-              label: 'Account',
-              url: '/account',
+              label: 'Sale',
+              url: '/shop?sale=true',
             },
           },
         ],

@@ -3,7 +3,10 @@ import { stripeAdapter } from '@payloadcms/plugin-ecommerce/payments/stripe'
 import type { PaymentAdapter } from '@payloadcms/plugin-ecommerce/types'
 
 import { calculateCheckoutTotals } from '@/lib/checkout/calculateCheckoutTotals'
-import { isStripeSecretConfigured } from '@/lib/checkout/paymentMethods'
+import {
+  assertOnlinePaymentEnabled,
+  isStripeSecretConfigured,
+} from '@/lib/checkout/paymentMethods'
 import { STORE_CURRENCY_CODE } from '@/lib/currency'
 
 type StripeAdapterArgs = {
@@ -68,6 +71,8 @@ export function stripeAdapterWithCheckoutTotals(props: StripeAdapterArgs): Payme
     ...base,
     initiatePayment: async (args) => {
       const { data, req } = args
+
+      assertOnlinePaymentEnabled()
 
       if (!isStripeSecretConfigured(secretKey)) {
         throw new Error(
@@ -155,6 +160,8 @@ export function stripeAdapterWithCheckoutTotals(props: StripeAdapterArgs): Payme
       }
     },
     confirmOrder: async (args) => {
+      assertOnlinePaymentEnabled()
+
       const result = await base.confirmOrder(args)
       if (!secretKey || !result || typeof result !== 'object' || !('orderID' in result)) {
         return result

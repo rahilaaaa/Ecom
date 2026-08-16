@@ -27,11 +27,12 @@ import {
   saveCheckoutDraft,
 } from '@/lib/checkout/checkoutDraft'
 import {
-  CHECKOUT_PAYMENT_METHODS,
   formatInrFromPaise,
+  getCheckoutPaymentMethods,
   isStripePublishableConfigured,
   type CheckoutPaymentMethod,
 } from '@/lib/checkout/paymentMethods'
+import { isOnlinePaymentEnabled } from '@/lib/checkout/paymentConfig'
 import { placeCodOrder } from '@/lib/checkout/placeCodOrder'
 import { validateCheckoutCart } from '@/lib/checkout/validateCheckoutCart'
 import {
@@ -177,6 +178,8 @@ export const CheckoutPage: React.FC = () => {
   const cartIsEmpty = !cart || !cart.items || !cart.items.length
   const stateOptions = getStateOptionsForCountry(address.country)
   const stripePublishableConfigured = isStripePublishableConfigured(apiKey)
+  const onlinePaymentEnabled = isOnlinePaymentEnabled()
+  const paymentMethods = getCheckoutPaymentMethods()
 
   useEffect(() => {
     const draft = loadCheckoutDraft()
@@ -189,7 +192,10 @@ export const CheckoutPage: React.FC = () => {
       if (draft.shippingMethod === 'standard' || draft.shippingMethod === 'express') {
         setShippingMethod(draft.shippingMethod)
       }
-      if (draft.paymentMethod === 'cod' || draft.paymentMethod === 'online') {
+      if (
+        (draft.paymentMethod === 'cod' || draft.paymentMethod === 'online') &&
+        (draft.paymentMethod === 'cod' || isOnlinePaymentEnabled())
+      ) {
         setPaymentMethod(draft.paymentMethod)
       }
       if (draft.couponCode) setCouponCode(draft.couponCode)
@@ -397,6 +403,13 @@ export const CheckoutPage: React.FC = () => {
     try {
       setError(null)
 
+      if (!isOnlinePaymentEnabled()) {
+        const message = 'Online payment is currently unavailable.'
+        setError(message)
+        toast.error(message)
+        return
+      }
+
       if (!stripePublishableConfigured) {
         const message =
           'Online payment is not configured. Set a valid NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (pk_test_…) and STRIPE_SECRET_KEY (sk_test_…) in your environment.'
@@ -496,6 +509,10 @@ export const CheckoutPage: React.FC = () => {
   }
 
   const selectPaymentMethod = (method: CheckoutPaymentMethod) => {
+    if (method === 'online' && !isOnlinePaymentEnabled()) {
+      return
+    }
+
     setPaymentMethod(method)
     setError(null)
     if (method === 'cod') {
@@ -1002,31 +1019,54 @@ export const CheckoutPage: React.FC = () => {
                 Payment method
               </h2>
 
-              {CHECKOUT_PAYMENT_METHODS.map((method) => (
-                <label
-                  key={method.id}
-                  className={cn(
-                    'flex cursor-pointer flex-col gap-1 rounded-md border px-4 py-4',
-                    paymentMethod === method.id
-                      ? 'border-[var(--elixir-on-surface,#1c1b1b)] bg-white'
-                      : 'border-[var(--elixir-outline-variant,#c1c8c7)] bg-white',
-                  )}
-                >
-                  <span className="flex items-center gap-3 text-sm font-medium">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      checked={paymentMethod === method.id}
-                      onChange={() => selectPaymentMethod(method.id)}
-                      className="accent-[var(--elixir-primary-container,#0d2b2b)]"
-                    />
-                    {method.label}
-                  </span>
-                  <span className="pl-7 text-sm text-[var(--elixir-on-surface-variant,#414848)]">
-                    {method.description}
-                  </span>
-                </label>
-              ))}
+              {paymentMethods.map((method) => {
+                const isDisabled = !method.available
+                const isSelected = paymentMethod === method.id && !isDisabled
+
+                return (
+                  <label
+                    key={method.id}
+                    className={cn(
+                      'flex flex-col gap-1 rounded-md border px-4 py-4',
+                      isDisabled
+                        ? 'cursor-not-allowed border-[var(--elixir-outline-variant,#c1c8c7)] bg-[var(--elixir-surface-container-low,#f6f3f2)] opacity-70'
+                        : 'cursor-pointer bg-white',
+                      isSelected
+                        ? 'border-[var(--elixir-on-surface,#1c1b1b)]'
+                        : !isDisabled && 'border-[var(--elixir-outline-variant,#c1c8c7)]',
+                    )}
+                    aria-disabled={isDisabled || undefined}
+                  >
+                    <span className="flex items-center gap-3 text-sm font-medium">
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        checked={isSelected}
+                        disabled={isDisabled}
+                        onChange={() => {
+                          if (!isDisabled) selectPaymentMethod(method.id)
+                        }}
+                        className="accent-[var(--elixir-primary-container,#0d2b2b)] disabled:cursor-not-allowed"
+                      />
+                      <span className="flex flex-wrap items-center gap-2">
+                        {isDisabled && method.unavailableTitle
+                          ? method.unavailableTitle
+                          : method.label}
+                        {isDisabled ? (
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--elixir-outline,#717878)]">
+                            Coming Soon
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
+                    <span className="pl-7 text-sm text-[var(--elixir-on-surface-variant,#414848)]">
+                      {isDisabled
+                        ? method.unavailableDescription || method.description
+                        : method.description}
+                    </span>
+                  </label>
+                )
+              })}
             </section>
 
             {paymentMethod === 'cod' ? (
@@ -1064,7 +1104,7 @@ export const CheckoutPage: React.FC = () => {
               </div>
             ) : null}
 
-            {paymentMethod === 'online' ? (
+            {paymentMethod === 'online' && onlinePaymentEnabled ? (
               <Suspense fallback={<LoadingSpinner />}>
                 {paymentData?.['clientSecret'] ? (
                   <Elements
