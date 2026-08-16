@@ -48,6 +48,19 @@ export default buildConfig({
     migrationDir: path.resolve(dirname, 'migrations'),
     push: process.env.NODE_ENV !== 'production',
   }),
+  i18n: {
+    translations: {
+      en: {
+        ecommerce: {
+          productRequired: 'A product is required.',
+          variantOptionsAlreadyExists:
+            'This variant combo is already in use by another variant. Please select different options.',
+          variantOptionsRequired: 'Variant options are required.',
+          variantOptionsRequiredAll: 'All variant options are required.',
+        },
+      },
+    },
+  },
   editor: lexicalEditor({
     features: () => {
       return [

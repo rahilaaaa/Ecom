@@ -4,17 +4,17 @@ import type { Field } from 'payload'
 import { PRICE_FIELD } from '@/lib/currency'
 
 /**
- * Ensure Price In INR is enabled by default and required on variants.
- * Walks the ecommerce plugin price field groups without removing other fields.
+ * Keep INR price requirements and replace the ecommerce plugin's variant
+ * options Field so Color/Size selections serialize into `options`.
  */
-function requireInrPriceFields(fields: Field[]): Field[] {
+function mapVariantFields(fields: Field[]): Field[] {
   return fields.map((field): Field => {
     if (field.type === 'tabs' && 'tabs' in field) {
       return {
         ...field,
         tabs: field.tabs.map((tab) => ({
           ...tab,
-          fields: requireInrPriceFields(tab.fields || []),
+          fields: mapVariantFields(tab.fields || []),
         })),
       } as Field
     }
@@ -25,7 +25,22 @@ function requireInrPriceFields(fields: Field[]): Field[] {
     ) {
       return {
         ...field,
-        fields: requireInrPriceFields(field.fields || []),
+        fields: mapVariantFields(field.fields || []),
+      } as Field
+    }
+
+    if ('name' in field && field.name === 'options' && field.type === 'relationship') {
+      return {
+        ...field,
+        admin: {
+          ...field.admin,
+          components: {
+            ...field.admin?.components,
+            Field: {
+              path: '@/components/admin/VariantOptionsSelector#VariantOptionsSelector',
+            },
+          },
+        },
       } as Field
     }
 
@@ -71,5 +86,5 @@ export const VariantsCollection: CollectionOverride = ({ defaultCollection }) =>
     ...defaultCollection.admin,
     defaultColumns: ['title', 'product', PRICE_FIELD, 'inventory', '_status'],
   },
-  fields: requireInrPriceFields(defaultCollection.fields || []),
+  fields: mapVariantFields(defaultCollection.fields || []),
 })
