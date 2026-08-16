@@ -141,7 +141,7 @@ async function fetchHomepageDataUncached(): Promise<HomepageData> {
   ])
 
   const curatedDocs = allCategories.docs.filter((category) => category.curated !== false)
-  let categories = (curatedDocs.length ? curatedDocs : allCategories.docs)
+  const categories = (curatedDocs.length ? curatedDocs : allCategories.docs)
     .slice(0, 12)
     .map(mapCategory)
 

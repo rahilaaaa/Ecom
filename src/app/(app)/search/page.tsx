@@ -10,6 +10,7 @@ import { sanitizeSearchQuery } from '@/lib/search/constants'
 import { toProductCardData } from '@/lib/shop/productCard'
 import { queryShopProducts, type ShopQueryParams } from '@/lib/shop/queryProducts'
 import { mergeOpenGraph } from '@/utilities/mergeOpenGraph'
+import type { Category } from '@/payload-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +52,7 @@ export default async function SearchPage({ searchParams }: Props) {
   let cards: ReturnType<typeof toProductCardData>[] = []
   let totalDocs = 0
   let hasNextPage = false
-  let categories: { id: string; title: string; slug: string }[] = []
+  let categories: Pick<Category, 'id' | 'title' | 'slug'>[] = []
   let loadError = false
 
   try {
@@ -70,7 +71,7 @@ export default async function SearchPage({ searchParams }: Props) {
     totalDocs = products.totalDocs
     hasNextPage = Boolean(products.hasNextPage)
     categories = categoryResult.docs.map((category) => ({
-      id: String(category.id),
+      id: category.id,
       title: category.title,
       slug: category.slug,
     }))

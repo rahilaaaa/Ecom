@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import React from 'react'
 
 import { BestSellers } from '@/components/home/BestSellers'
@@ -33,12 +34,12 @@ export default async function HomePage() {
         <p className="max-w-md text-sm text-[var(--elixir-on-surface-variant,#414848)]">
           The boutique is momentarily unavailable. Please refresh or visit the shop.
         </p>
-        <a
+        <Link
           href="/shop"
           className="inline-flex min-h-12 items-center bg-[var(--elixir-primary-container,#0d2b2b)] px-6 text-xs font-semibold uppercase tracking-[0.12em] text-white"
         >
           Shop All
-        </a>
+        </Link>
       </div>
     )
   }

@@ -21,9 +21,15 @@ export async function subscribeNewsletter(input: {
     const payload = await getPayload({ config: configPromise })
 
     if (input.formId) {
+      const formId = Number(input.formId)
+
+      if (!Number.isInteger(formId) || formId <= 0) {
+        return { ok: false, message: 'Unable to subscribe right now. Please try again shortly.' }
+      }
+
       const form = await payload.findByID({
         collection: 'forms',
-        id: input.formId,
+        id: formId,
         depth: 0,
       })
 
@@ -39,7 +45,7 @@ export async function subscribeNewsletter(input: {
       await payload.create({
         collection: 'form-submissions',
         data: {
-          form: input.formId,
+          form: form.id,
           submissionData: [
             {
               field: fieldName,

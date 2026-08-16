@@ -4,7 +4,11 @@ import Link from 'next/link'
 import { ShoppingBag } from 'lucide-react'
 import React, { useMemo } from 'react'
 import { useCart } from '@payloadcms/plugin-ecommerce/client/react'
+
+import type { Cart as PayloadCart } from '@/payload-types'
 import { cn } from '@/utilities/cn'
+
+export type CartItem = NonNullable<PayloadCart['items']>[number]
 
 /**
  * Header cart control — links to the dedicated cart page.

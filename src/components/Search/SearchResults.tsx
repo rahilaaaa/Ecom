@@ -7,8 +7,7 @@ import { ShopErrorState } from '@/components/shop/ShopStates'
 import { ShopToolbar } from '@/components/shop/ShopToolbar'
 import type { ProductCardData } from '@/lib/shop/productCard'
 import type { ShopQueryParams } from '@/lib/shop/queryProducts'
-
-type CategoryOption = { id: string; title: string; slug: string }
+import type { Category } from '@/payload-types'
 
 type Props = {
   query: string
@@ -16,7 +15,7 @@ type Props = {
   totalDocs: number
   hasNextPage: boolean
   shopQuery: ShopQueryParams
-  categories: CategoryOption[]
+  categories: Pick<Category, 'id' | 'title' | 'slug'>[]
   loadError?: boolean
 }
 

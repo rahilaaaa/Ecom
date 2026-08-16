@@ -58,10 +58,8 @@ function resolveInStock(product: Partial<Product>): boolean {
 export function toProductCardData(
   product: Partial<Product> & { id: string | number },
 ): ProductCardData {
-  const image =
-    product.gallery?.[0]?.image && typeof product.gallery[0].image !== 'string'
-      ? product.gallery[0].image
-      : null
+  const galleryImage = product.gallery?.[0]?.image
+  const image = galleryImage && typeof galleryImage === 'object' ? galleryImage : null
 
   const price = resolvePrice(product)
   const badge = (product.badge as ProductCardData['badge']) ?? 'none'

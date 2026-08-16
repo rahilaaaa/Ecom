@@ -9,6 +9,7 @@ import { ShopEmptyState, ShopErrorState } from '@/components/shop/ShopStates'
 import { ShopToolbar } from '@/components/shop/ShopToolbar'
 import { toProductCardData } from '@/lib/shop/productCard'
 import { queryShopProducts, type ShopQueryParams } from '@/lib/shop/queryProducts'
+import type { Category } from '@/payload-types'
 
 export const metadata = {
   description: 'Shop all products from the Elixir boutique.',
@@ -35,7 +36,7 @@ export default async function ShopPage({ searchParams }: Props) {
   }
 
   let productsResult: Awaited<ReturnType<typeof queryShopProducts>> | null = null
-  let categories: { id: string; title: string; slug: string }[] = []
+  let categories: Pick<Category, 'id' | 'title' | 'slug'>[] = []
   let loadError = false
 
   try {
@@ -55,7 +56,7 @@ export default async function ShopPage({ searchParams }: Props) {
 
     productsResult = products
     categories = categoryResult.docs.map((category) => ({
-      id: String(category.id),
+      id: category.id,
       title: category.title,
       slug: category.slug,
     }))

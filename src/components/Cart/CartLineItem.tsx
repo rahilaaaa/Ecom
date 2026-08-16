@@ -1,7 +1,7 @@
 'use client'
 
 import type { CartItem } from '@/components/Cart'
-import type { Media, Product } from '@/payload-types'
+import type { Media, Product, VariantOption } from '@/payload-types'
 import { XIcon } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -43,7 +43,7 @@ function resolveItemVisual(item: CartItem): {
 
   if (isVariant && variant) {
     variantLabel = variant.options
-      ?.map((option) => {
+      ?.map((option: number | VariantOption) => {
         if (typeof option === 'object' && option) {
           const typeName =
             typeof option.variantType === 'object' && option.variantType
@@ -56,14 +56,14 @@ function resolveItemVisual(item: CartItem): {
       .filter(Boolean)
       .join(' · ')
 
-    const imageVariant = product.gallery?.find((galleryItem) => {
+    const imageVariant = product.gallery?.find((galleryItem: NonNullable<Product['gallery']>[number]) => {
       if (!galleryItem.variantOption) return false
       const variantOptionID =
         typeof galleryItem.variantOption === 'object'
           ? galleryItem.variantOption.id
           : galleryItem.variantOption
 
-      return variant.options?.some((option) => {
+      return variant.options?.some((option: number | VariantOption) => {
         if (typeof option === 'object') return option.id === variantOptionID
         return option === variantOptionID
       })
