@@ -4,7 +4,7 @@ import { ProductGallery } from '@/components/product/ProductGallery'
 import { ProductInfo } from '@/components/product/ProductInfo'
 import { ProductPurchaseActions } from '@/components/product/ProductPurchaseActions'
 import { RecommendedProducts } from '@/components/product/RecommendedProducts'
-import { getUnitPrice, STORE_CURRENCY_CODE } from '@/lib/currency'
+import { getEffectivePriceRange, STORE_CURRENCY_CODE } from '@/lib/currency'
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 import { draftMode } from 'next/headers'
@@ -77,17 +77,8 @@ export default async function ProductPage({ params }: Args) {
       })
     : Boolean(product.inventory && product.inventory > 0)
 
-  let price = getUnitPrice(product)
-  if (product.enableVariants && product?.variants?.docs?.length) {
-    price = product.variants.docs.reduce((acc, variant) => {
-      if (typeof variant !== 'object' || !variant) return acc
-      const variantPrice = getUnitPrice(variant)
-      if (variantPrice != null && (acc == null || variantPrice > acc)) {
-        return variantPrice
-      }
-      return acc
-    }, price)
-  }
+  const priceRange = getEffectivePriceRange(product)
+  const price = priceRange.lowestAmount
 
   const productJsonLd = {
     name: product.title,
@@ -98,6 +89,8 @@ export default async function ProductPage({ params }: Args) {
     offers: {
       '@type': 'AggregateOffer',
       availability: hasStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      lowPrice: priceRange.lowestAmount,
+      highPrice: priceRange.highestAmount,
       priceAmount: price,
       priceCurrency: STORE_CURRENCY_CODE,
     },
@@ -188,6 +181,9 @@ async function getRecommendedProducts(product: Product): Promise<Product[]> {
       gallery: true,
       categories: true,
       priceInINR: true,
+      pricingMode: true,
+      enableVariants: true,
+      variants: true,
       badge: true,
       rating: true,
       featured: true,

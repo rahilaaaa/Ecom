@@ -15,6 +15,7 @@ import { adminOnlyFieldAccess } from '@/access/adminOnlyFieldAccess'
 import { customerOnlyFieldAccess } from '@/access/customerOnlyFieldAccess'
 import { isAdmin } from '@/access/isAdmin'
 import { isDocumentOwner } from '@/access/isDocumentOwner'
+import { overrideCartsCollection } from '@/lib/cart/overrideCartsCollection'
 import { overrideOrdersCollection } from '@/lib/orders/overrideOrdersCollection'
 import { stripeAdapterWithCheckoutTotals } from '@/lib/payments/stripeAdapterWithCheckoutTotals'
 import { INR } from '@/lib/currency'
@@ -131,6 +132,10 @@ export const plugins: Plugin[] = [
     },
     customers: {
       slug: 'users',
+    },
+    carts: {
+      cartsCollectionOverride: ({ defaultCollection }) =>
+        overrideCartsCollection(defaultCollection),
     },
     orders: {
       ordersCollectionOverride: ({ defaultCollection }) =>

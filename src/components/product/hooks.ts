@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { useMemo } from 'react'
 
 import { findVariantForOptions } from '@/lib/product/variantGallery'
-import { getLineUnitPrice, getUnitPrice } from '@/lib/currency'
+import { getEffectivePrice, getEffectivePriceRange } from '@/lib/currency'
 
 export function useSelectedVariant(product: Product): Variant | undefined {
   const searchParams = useSearchParams()
@@ -47,50 +47,37 @@ export function useProductPrice(product: Product): {
   const hasVariants = Boolean(product.enableVariants && product.variants?.docs?.length)
 
   return useMemo(() => {
+    const range = getEffectivePriceRange(product)
+
     if (hasVariants) {
-      const variants = (product.variants?.docs || []).filter(
-        (variant): variant is Variant => typeof variant === 'object' && Boolean(variant),
-      )
-
-      const prices = variants
-        .map((variant) => getUnitPrice(variant))
-        .filter((price): price is number => typeof price === 'number')
-
-      const lowestAmount = prices.length ? Math.min(...prices) : null
-      const highestAmount = prices.length ? Math.max(...prices) : null
-
       if (selectedVariant) {
-        const amount = getLineUnitPrice({
-          product,
-          variant: selectedVariant,
-          enableVariants: true,
-        })
         return {
-          amount,
+          amount: getEffectivePrice({
+            product,
+            variant: selectedVariant,
+            enableVariants: true,
+          }),
           isOnSale: product.badge === 'sale',
-          lowestAmount,
-          highestAmount,
+          lowestAmount: range.lowestAmount,
+          highestAmount: range.highestAmount,
           hasRange: false,
         }
       }
 
       return {
-        amount: lowestAmount,
+        amount: range.amount,
         isOnSale: product.badge === 'sale',
-        lowestAmount,
-        highestAmount,
-        hasRange: Boolean(
-          lowestAmount !== null && highestAmount !== null && lowestAmount !== highestAmount,
-        ),
+        lowestAmount: range.lowestAmount,
+        highestAmount: range.highestAmount,
+        hasRange: range.hasRange,
       }
     }
 
-    const amount = getUnitPrice(product)
     return {
-      amount,
+      amount: range.amount,
       isOnSale: product.badge === 'sale',
-      lowestAmount: amount,
-      highestAmount: amount,
+      lowestAmount: range.lowestAmount,
+      highestAmount: range.highestAmount,
       hasRange: false,
     }
   }, [hasVariants, product, selectedVariant])

@@ -381,6 +381,10 @@ export interface Product {
   layout?: (CallToActionBlock | ContentBlock | MediaBlock)[] | null;
   inventory?: number | null;
   enableVariants?: boolean | null;
+  /**
+   * Product mode charges the product price for every variant. Variant mode requires a price on each variant and never falls back to the product price.
+   */
+  pricingMode?: ('product' | 'variant') | null;
   variantTypes?: (number | VariantType)[] | null;
   variants?: {
     docs?: (number | Variant)[];
@@ -388,6 +392,9 @@ export interface Product {
     totalDocs?: number;
   };
   priceInINREnabled?: boolean | null;
+  /**
+   * Charged for every variant when Pricing mode is “Same price for all variants”. Amount is in paise (₹1,500.00 = 150000).
+   */
   priceInINR?: number | null;
   relatedProducts?: (number | Product)[] | null;
   meta?: {
@@ -955,12 +962,9 @@ export interface Variant {
   product: number | Product;
   options: (number | VariantOption)[];
   inventory?: number | null;
-  /**
-   * INR is the store currency. Keep this enabled and set Price In INR.
-   */
   priceInINREnabled?: boolean | null;
   /**
-   * Required unit price in paise (smallest INR unit). Example: ₹1,500.00 = 150000.
+   * Required when the parent product uses per-variant pricing. Amount is in paise (₹1,500.00 = 150000).
    */
   priceInINR?: number | null;
   updatedAt: string;
@@ -1744,6 +1748,7 @@ export interface ProductsSelect<T extends boolean = true> {
       };
   inventory?: T;
   enableVariants?: T;
+  pricingMode?: T;
   variantTypes?: T;
   variants?: T;
   priceInINREnabled?: T;

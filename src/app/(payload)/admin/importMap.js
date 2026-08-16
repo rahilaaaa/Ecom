@@ -20,8 +20,9 @@ import { PreviewComponent as PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860 }
 import { SlugField as SlugField_2b8867833a34864a02ddf429b0728a40 } from '@payloadcms/next/client'
 import { VariantOptionsSelector as VariantOptionsSelector_87bae7d1339953c0d560dfd1907808cd } from '@/components/admin/VariantOptionsSelector'
 import { PriceCell as PriceCell_e27bf7b8cc50640dcdd584767b8eac3c } from '@payloadcms/plugin-ecommerce/client'
-import { PriceInput as PriceInput_b91672ccd6e8b071c11142ab941fedfb } from '@payloadcms/plugin-ecommerce/rsc'
+import { VariantPriceField as VariantPriceField_aa2d9b00778def35b383583a0c19f52d } from '@/components/admin/VariantPriceField'
 import { HorizontalRuleFeatureClient as HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
+import { PriceInput as PriceInput_b91672ccd6e8b071c11142ab941fedfb } from '@payloadcms/plugin-ecommerce/rsc'
 import { BeforeDashboard as BeforeDashboard_1a7510af427896d367a49dbf838d2de6 } from '@/components/BeforeDashboard'
 import { BeforeLogin as BeforeLogin_8a7ab0eb7ab5c511aba12e68480bfe5e } from '@/components/BeforeLogin'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
@@ -51,8 +52,9 @@ export const importMap = {
   "@payloadcms/next/client#SlugField": SlugField_2b8867833a34864a02ddf429b0728a40,
   "@/components/admin/VariantOptionsSelector#VariantOptionsSelector": VariantOptionsSelector_87bae7d1339953c0d560dfd1907808cd,
   "@payloadcms/plugin-ecommerce/client#PriceCell": PriceCell_e27bf7b8cc50640dcdd584767b8eac3c,
-  "@payloadcms/plugin-ecommerce/rsc#PriceInput": PriceInput_b91672ccd6e8b071c11142ab941fedfb,
+  "@/components/admin/VariantPriceField#VariantPriceField": VariantPriceField_aa2d9b00778def35b383583a0c19f52d,
   "@payloadcms/richtext-lexical/client#HorizontalRuleFeatureClient": HorizontalRuleFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
+  "@payloadcms/plugin-ecommerce/rsc#PriceInput": PriceInput_b91672ccd6e8b071c11142ab941fedfb,
   "@/components/BeforeDashboard#BeforeDashboard": BeforeDashboard_1a7510af427896d367a49dbf838d2de6,
   "@/components/BeforeLogin#BeforeLogin": BeforeLogin_8a7ab0eb7ab5c511aba12e68480bfe5e,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24,

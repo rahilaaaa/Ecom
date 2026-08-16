@@ -1,7 +1,7 @@
 import type { Media, Product, ThreeItemGridBlock as ThreeItemGridBlockProps } from '@/payload-types'
 
 import { GridTileImage } from '@/components/Grid/tile'
-import { getLineUnitPrice } from '@/lib/currency'
+import { getEffectivePriceRange } from '@/lib/currency'
 import Link from 'next/link'
 import React from 'react'
 import type { DefaultDocumentIDType } from 'payload'
@@ -9,16 +9,7 @@ import type { DefaultDocumentIDType } from 'payload'
 type Props = { item: Product; priority?: boolean; size: 'full' | 'half' }
 
 export const ThreeItemGridItem: React.FC<Props> = ({ item, size }) => {
-  const firstVariant =
-    item.enableVariants && item.variants?.docs?.length && typeof item.variants.docs[0] === 'object'
-      ? item.variants.docs[0]
-      : null
-
-  const price = getLineUnitPrice({
-    product: item,
-    variant: firstVariant,
-    enableVariants: Boolean(item.enableVariants && firstVariant),
-  })
+  const price = getEffectivePriceRange(item).amount
 
   return (
     <div

@@ -5,7 +5,7 @@ import React from 'react'
 import clsx from 'clsx'
 import { Media } from '@/components/Media'
 import { Price } from '@/components/Price'
-import { getLineUnitPrice } from '@/lib/currency'
+import { getEffectivePriceRange } from '@/lib/currency'
 
 type Props = {
   product: Partial<Product>
@@ -14,15 +14,7 @@ type Props = {
 export const ProductGridItem: React.FC<Props> = ({ product }) => {
   const { gallery, title } = product
 
-  const variants = product.variants?.docs
-  const firstVariant =
-    variants && variants.length > 0 && typeof variants[0] === 'object' ? variants[0] : null
-
-  const price = getLineUnitPrice({
-    product,
-    variant: firstVariant,
-    enableVariants: Boolean(product.enableVariants && firstVariant),
-  })
+  const price = getEffectivePriceRange(product).amount
 
   const image =
     gallery?.[0]?.image && typeof gallery[0]?.image !== 'string' ? gallery[0]?.image : false

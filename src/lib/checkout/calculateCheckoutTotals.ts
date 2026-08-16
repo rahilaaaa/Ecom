@@ -7,7 +7,8 @@ import {
   isShippingMethodId,
   type ShippingMethodId,
 } from '@/lib/checkout/shippingConfig'
-import { getLineUnitPrice, STORE_CURRENCY_CODE } from '@/lib/currency'
+import { getEffectivePrice, STORE_CURRENCY_CODE } from '@/lib/currency'
+import { usesVariantPricing } from '@/lib/pricing'
 
 export type CheckoutCartItemInput = {
   productId: string | number
@@ -105,7 +106,7 @@ export async function calculateCheckoutTotals(args: {
         return { ok: false, message: `Insufficient stock for ${product.title}.` }
       }
 
-      const unitPrice = getLineUnitPrice({
+      const unitPrice = getEffectivePrice({
         product,
         variant,
         enableVariants: true,
@@ -114,7 +115,9 @@ export async function calculateCheckoutTotals(args: {
       if (typeof unitPrice !== 'number') {
         return {
           ok: false,
-          message: `Price unavailable for a selected variant of ${product.title}.`,
+          message: usesVariantPricing(product)
+            ? `Price unavailable for a selected variant of ${product.title}.`
+            : `Price unavailable for ${product.title}.`,
         }
       }
 
@@ -140,7 +143,7 @@ export async function calculateCheckoutTotals(args: {
         return { ok: false, message: `Insufficient stock for ${product.title}.` }
       }
 
-      const unitPrice = getLineUnitPrice({ product, enableVariants: false })
+      const unitPrice = getEffectivePrice({ product, enableVariants: false })
 
       if (typeof unitPrice !== 'number') {
         return { ok: false, message: `Price unavailable for ${product.title}.` }

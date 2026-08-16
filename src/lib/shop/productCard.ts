@@ -1,6 +1,6 @@
 import type { Category, Media, Product, Variant } from '@/payload-types'
 
-import { getLineUnitPrice, getUnitPrice } from '@/lib/currency'
+import { getEffectivePrice, getEffectivePriceRange } from '@/lib/currency'
 
 export type ProductCardData = {
   id: string
@@ -19,19 +19,7 @@ export type ProductCardData = {
 }
 
 function resolvePrice(product: Partial<Product>): number | null {
-  if (product.enableVariants) {
-    const variants = product.variants?.docs
-    if (variants && variants.length > 0) {
-      const prices = variants
-        .map((variant) => (typeof variant === 'object' ? getUnitPrice(variant as Variant) : null))
-        .filter((price): price is number => typeof price === 'number')
-      // Variant products must be priced on variants — never fall back to product price.
-      return prices.length ? Math.min(...prices) : null
-    }
-    return null
-  }
-
-  return getUnitPrice(product as Product)
+  return getEffectivePriceRange(product).amount
 }
 
 function resolveCategory(product: Partial<Product>): string | null {
@@ -85,7 +73,7 @@ export function getProductOrVariantPrice(
   product: Product,
   variant?: Variant | null,
 ): number | null {
-  return getLineUnitPrice({
+  return getEffectivePrice({
     product,
     variant,
     enableVariants: product.enableVariants,

@@ -61,6 +61,7 @@ export const productHatData: (args: ProductArgs) => RequiredDataFromCollectionSl
     gallery: [{ image: galleryImage }],
     title: 'Hat',
     slug: 'hat',
+    pricingMode: 'product',
     priceInINREnabled: true,
     priceInINR: 2500,
     relatedProducts: relatedProducts,

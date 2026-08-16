@@ -40,6 +40,8 @@ export const Providers: React.FC<{
                       gallery: true,
                       inventory: true,
                       priceInINR: true,
+                      pricingMode: true,
+                      enableVariants: true,
                     },
                     variants: {
                       title: true,

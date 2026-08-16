@@ -131,6 +131,7 @@ export async function queryShopProducts(params: ShopQueryParams = {}) {
       gallery: true,
       categories: true,
       priceInINR: true,
+      pricingMode: true,
       badge: true,
       rating: true,
       featured: true,

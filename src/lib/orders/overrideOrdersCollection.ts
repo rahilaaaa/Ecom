@@ -2,7 +2,7 @@ import type { CollectionBeforeChangeHook, CollectionConfig, Field } from 'payloa
 import { APIError } from 'payload'
 
 import type { Product, Variant } from '@/payload-types'
-import { getLineUnitPrice, getUnitPrice } from '@/lib/currency'
+import { getEffectivePrice } from '@/lib/currency'
 import { isOnlinePaymentEnabled, ONLINE_PAYMENT_UNAVAILABLE_MESSAGE } from '@/lib/checkout/paymentConfig'
 import { DEFAULT_SHIPPING_METHOD, calculateShippingAmount } from '@/lib/checkout/shippingConfig'
 import { addBusinessDays } from '@/lib/orders/deliveryEstimate'
@@ -82,7 +82,7 @@ const snapshotOrderPricing: CollectionBeforeChangeHook = async ({ data, req, ope
       let variant: Variant | null =
         item.variant && typeof item.variant === 'object' ? (item.variant as Variant) : null
 
-      if ((!product || !next.productTitle || next.unitPrice == null) && productID) {
+      if ((!product || !next.productTitle || operation === 'create' || next.unitPrice == null) && productID) {
         try {
           product = (await req.payload.findByID({
             collection: 'products',
@@ -96,7 +96,7 @@ const snapshotOrderPricing: CollectionBeforeChangeHook = async ({ data, req, ope
         }
       }
 
-      if ((!variant || !next.variantLabel) && variantID) {
+      if ((!variant || !next.variantLabel || operation === 'create') && variantID) {
         try {
           variant = (await req.payload.findByID({
             collection: 'variants',
@@ -110,34 +110,25 @@ const snapshotOrderPricing: CollectionBeforeChangeHook = async ({ data, req, ope
         }
       }
 
-      if (next.unitPrice == null) {
-        const usesVariant = Boolean(variantID && (variant || product?.enableVariants))
-        if (usesVariant) {
-          if (!variant) {
-            throw new APIError('Order item is missing a valid product variant.', 400)
-          }
-          const price = getUnitPrice(variant)
-          if (typeof price !== 'number') {
-            throw new APIError(
-              `Variant "${variant.title || variant.id}" is missing Price In INR.`,
-              400,
-            )
-          }
-          next.unitPrice = price
-        } else {
-          const price = getLineUnitPrice({
-            product,
-            variant: null,
-            enableVariants: false,
-          })
-          if (typeof price !== 'number') {
-            throw new APIError(
-              `Product "${product?.title || productID}" is missing Price In INR.`,
-              400,
-            )
-          }
-          next.unitPrice = price
+      if (operation === 'create' && product?.enableVariants && !variant) {
+        throw new APIError('Order item is missing a valid product variant.', 400)
+      }
+
+      if (operation === 'create' || next.unitPrice == null) {
+        const price = getEffectivePrice({
+          product,
+          variant,
+          enableVariants: product?.enableVariants,
+        })
+        if (typeof price !== 'number') {
+          throw new APIError(
+            variant
+              ? `Price unavailable for "${product?.title || productID}" (${variant.title || variant.id}).`
+              : `Price unavailable for "${product?.title || productID}".`,
+            400,
+          )
         }
+        next.unitPrice = price
       }
 
       if (!next.productTitle && product?.title) {
@@ -157,13 +148,13 @@ const snapshotOrderPricing: CollectionBeforeChangeHook = async ({ data, req, ope
 
     data.items = nextItems
 
-    if (data.subtotal == null) {
+    if (operation === 'create' || data.subtotal == null) {
       const subtotal = nextItems.reduce((sum: number, item) => {
         if (typeof item.unitPrice !== 'number') {
           throw new APIError('Order item is missing a captured unit price.', 400)
         }
-        const qty = typeof item.quantity === 'number' ? item.quantity : 0
-        return sum + item.unitPrice * qty
+        const qty = Number(item.quantity)
+        return sum + item.unitPrice * (Number.isFinite(qty) ? qty : 0)
       }, 0)
       data.subtotal = subtotal
     }

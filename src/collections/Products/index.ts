@@ -20,6 +20,8 @@ import {
 } from '@payloadcms/richtext-lexical'
 import { DefaultDocumentIDType, Where } from 'payload'
 
+import { mapProductPricingFields, validateProductPricing } from '@/collections/Products/pricing'
+
 export const ProductsCollection: CollectionOverride = ({ defaultCollection }) => ({
   ...defaultCollection,
   admin: {
@@ -50,6 +52,7 @@ export const ProductsCollection: CollectionOverride = ({ defaultCollection }) =>
     enableVariants: true,
     gallery: true,
     priceInINR: true,
+    pricingMode: true,
     inventory: true,
     meta: true,
     featured: true,
@@ -145,7 +148,7 @@ export const ProductsCollection: CollectionOverride = ({ defaultCollection }) =>
         },
         {
           fields: [
-            ...defaultCollection.fields,
+            ...mapProductPricingFields(defaultCollection.fields),
             {
               name: 'relatedProducts',
               type: 'relationship',
@@ -245,4 +248,8 @@ export const ProductsCollection: CollectionOverride = ({ defaultCollection }) =>
     },
     slugField(),
   ],
+  hooks: {
+    ...defaultCollection.hooks,
+    beforeChange: [...(defaultCollection.hooks?.beforeChange || []), validateProductPricing],
+  },
 })

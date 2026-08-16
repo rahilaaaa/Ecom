@@ -1169,6 +1169,7 @@ export const productTshirtData: (
     gallery: galleryImages,
     title: 'Tshirt',
     slug: 'tshirt',
+    pricingMode: 'product',
     priceInINREnabled: true,
     priceInINR: 4999,
     relatedProducts: relatedProducts,
