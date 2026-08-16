@@ -1,6 +1,5 @@
 'use client'
 
-import { CMSLink } from '@/components/Link'
 import { Cart } from '@/components/Cart'
 import { Search } from '@/components/Search'
 import Link from 'next/link'
@@ -12,7 +11,6 @@ import type { Header } from 'src/payload-types'
 import { AnnouncementBar } from '@/components/layout/AnnouncementBar'
 
 import { usePathname } from 'next/navigation'
-import { cn } from '@/utilities/cn'
 import { Heart, ShoppingBag } from 'lucide-react'
 
 type Props = {
@@ -20,12 +18,6 @@ type Props = {
 }
 
 const brandName = process.env.NEXT_PUBLIC_SITE_NAME || process.env.SITE_NAME || 'ELIXIR'
-
-function isNavActive(pathname: string, url?: string | null) {
-  if (!url || url === '/') return false
-  const pathOnly = url.split('?')[0] || url
-  return pathname === pathOnly || pathname.startsWith(`${pathOnly}/`)
-}
 
 export function HeaderClient({ header }: Props) {
   const menu = header.navItems || []
@@ -79,12 +71,12 @@ export function HeaderClient({ header }: Props) {
           </div>
         </nav>
 
-        {/* Desktop: logo (+ CMS nav) | truly centered search | utilities */}
+        {/* Desktop: logo | centered search | account, wishlist, cart */}
         <nav
           aria-label="Primary"
           className="mx-auto hidden h-[4.5rem] max-w-[1440px] grid-cols-[1fr_auto_1fr] items-center px-12 lg:px-16 md:grid"
         >
-          <div className="flex min-w-0 items-center gap-8 justify-self-start lg:gap-10">
+          <div className="justify-self-start">
             <Link
               href="/"
               className="shrink-0 font-[family-name:var(--font-newsreader)] text-[1.35rem] font-medium tracking-[0.12em] text-[var(--elixir-on-surface,#1c1b1b)] outline-none transition hover:opacity-70 focus-visible:underline"
@@ -92,23 +84,6 @@ export function HeaderClient({ header }: Props) {
             >
               {brandName}
             </Link>
-
-            {menu.length > 0 ? (
-              <ul className="hidden min-w-0 items-center gap-7 overflow-hidden xl:flex">
-                {menu.map((item) => (
-                  <li key={item.id} className="shrink-0">
-                    <CMSLink
-                      {...item.link}
-                      appearance="inline"
-                      className={cn(
-                        'relative text-[12px] font-medium tracking-[0.08em] text-[var(--elixir-on-surface,#1c1b1b)] outline-none transition hover:opacity-55 focus-visible:underline',
-                        isNavActive(pathname, item.link?.url) && 'underline underline-offset-[10px]',
-                      )}
-                    />
-                  </li>
-                ))}
-              </ul>
-            ) : null}
           </div>
 
           <div className="w-[min(100%,420px)] min-w-[360px] justify-self-center">
@@ -122,7 +97,7 @@ export function HeaderClient({ header }: Props) {
             </Suspense>
           </div>
 
-          <div className="flex items-center justify-self-end gap-7 lg:gap-8">
+          <div className="flex items-center justify-self-end gap-8 lg:gap-10">
             <HeaderAccountMenu />
             <Link
               href="/account/wishlist"
