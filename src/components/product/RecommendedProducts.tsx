@@ -3,10 +3,9 @@ import React from 'react'
 
 import { ProductCard } from '@/components/shop/ProductCard'
 import { toProductCardData } from '@/lib/shop/productCard'
-import type { Product } from '@/payload-types'
 
 type Props = {
-  products: Product[]
+  products: Array<Parameters<typeof toProductCardData>[0]>
   heading?: string
 }
 

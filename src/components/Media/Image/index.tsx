@@ -45,7 +45,7 @@ export const Image: React.FC<MediaProps> = (props) => {
 
     width = widthFromProps ?? fullWidth
     height = heightFromProps ?? fullHeight
-    alt = altFromResource
+    alt = altFromResource || altFromProps
 
     const filename = fullFilename
 
@@ -68,6 +68,8 @@ export const Image: React.FC<MediaProps> = (props) => {
     : Object.entries(breakpoints)
         .map(([, value]) => `(max-width: ${value}px) ${value}px`)
         .join(', ')
+
+  if (!src) return null
 
   return (
     <NextImage

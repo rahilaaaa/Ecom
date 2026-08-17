@@ -9,10 +9,13 @@ import React, { Suspense } from 'react'
 import { VariantSelector } from './VariantSelector'
 import { StockIndicator } from '@/components/product/StockIndicator'
 import { useProductPrice } from '@/components/product/hooks'
+import { hasRichTextContent } from '@/lib/product/content'
+import { buildVariantOptionGroups } from '@/lib/product/variants'
 
 export function ProductDescription({ product }: { product: Product }) {
   const price = useProductPrice(product)
-  const hasVariants = product.enableVariants && Boolean(product.variants?.docs?.length)
+  const hasVariants = buildVariantOptionGroups(product).length > 0
+  const hasDescription = hasRichTextContent(product.description)
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,7 +31,7 @@ export function ProductDescription({ product }: { product: Product }) {
           ) : null}
         </div>
       </div>
-      {product.description ? (
+      {hasDescription && product.description ? (
         <RichText className="" data={product.description} enableGutter={false} />
       ) : null}
       <hr />

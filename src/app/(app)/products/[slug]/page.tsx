@@ -1,15 +1,15 @@
-import type { Media, Product } from '@/payload-types'
+import type { Product } from '@/payload-types'
 
-import { ProductGallery } from '@/components/product/ProductGallery'
-import { ProductInfo } from '@/components/product/ProductInfo'
-import { ProductPurchaseActions } from '@/components/product/ProductPurchaseActions'
+import { ProductDetail } from '@/components/product/ProductDetail'
 import { RecommendedProducts } from '@/components/product/RecommendedProducts'
 import { getEffectivePriceRange, STORE_CURRENCY_CODE } from '@/lib/currency'
+import { productHasAnyStock } from '@/lib/product/inventory'
+import { getMediaAlt, getProductGalleryItems, isMedia } from '@/lib/product/media'
+import { queryProductBySlug } from '@/lib/product/queryProduct'
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
-import { draftMode } from 'next/headers'
 import { notFound } from 'next/navigation'
-import React, { Suspense } from 'react'
+import React from 'react'
 import type { Metadata } from 'next'
 
 type Args = {
@@ -24,10 +24,11 @@ export async function generateMetadata({ params }: Args): Promise<Metadata> {
 
   if (!product) return {}
 
-  const gallery = product.gallery?.filter((item) => typeof item.image === 'object') || []
-  const metaImage = typeof product.meta?.image === 'object' ? product.meta?.image : undefined
+  const gallery = getProductGalleryItems(product)
+  const metaImage = isMedia(product.meta?.image) ? product.meta.image : undefined
   const canIndex = product._status === 'published'
-  const seoImage = metaImage || (gallery.length ? (gallery[0]?.image as Media) : undefined)
+  const seoImage = metaImage || gallery[0]?.image
+  const seoAlt = seoImage ? getMediaAlt(seoImage, product.title) : product.title
 
   return {
     description: product.meta?.description || '',
@@ -35,9 +36,9 @@ export async function generateMetadata({ params }: Args): Promise<Metadata> {
       ? {
           images: [
             {
-              alt: seoImage?.alt || product.title,
+              alt: seoAlt,
               height: seoImage.height!,
-              url: seoImage?.url,
+              url: seoImage.url,
               width: seoImage.width!,
             },
           ],
@@ -61,22 +62,9 @@ export default async function ProductPage({ params }: Args) {
 
   if (!product) return notFound()
 
-  const gallery =
-    product.gallery
-      ?.filter((item) => typeof item.image === 'object')
-      .map((item) => ({
-        ...item,
-        image: item.image as Media,
-      })) || []
-
-  const metaImage = typeof product.meta?.image === 'object' ? product.meta?.image : undefined
-  const hasStock = product.enableVariants
-    ? product?.variants?.docs?.some((variant) => {
-        if (typeof variant !== 'object') return false
-        return Boolean(variant.inventory && variant.inventory > 0)
-      })
-    : Boolean(product.inventory && product.inventory > 0)
-
+  const gallery = getProductGalleryItems(product)
+  const metaImage = isMedia(product.meta?.image) ? product.meta.image : undefined
+  const hasStock = productHasAnyStock(product)
   const priceRange = getEffectivePriceRange(product)
   const price = priceRange.lowestAmount
 
@@ -107,39 +95,14 @@ export default async function ProductPage({ params }: Args) {
         type="application/ld+json"
       />
 
-      <div className="mx-auto w-full max-w-[1280px] px-5 pb-28 pt-6 md:px-6 md:pb-20 md:pt-10 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:gap-14 xl:gap-20">
-          <Suspense
-            fallback={
-              <div className="aspect-[4/5] w-full animate-pulse rounded-lg bg-[var(--elixir-surface-container,#f0eded)]" />
-            }
-          >
-            <ProductGallery
-              gallery={gallery}
-              product={product}
-              productId={String(product.id)}
-              productTitle={product.title}
-            />
-          </Suspense>
-
-          <Suspense fallback={null}>
-            <ProductInfo product={product} />
-          </Suspense>
-        </div>
-      </div>
+      <ProductDetail product={product} gallery={gallery} />
 
       <RecommendedProducts products={recommended} />
-
-      <div className="fixed inset-x-0 bottom-0 z-40 lg:hidden">
-        <Suspense fallback={null}>
-          <ProductPurchaseActions product={product} sticky />
-        </Suspense>
-      </div>
     </div>
   )
 }
 
-async function getRecommendedProducts(product: Product): Promise<Product[]> {
+async function getRecommendedProducts(product: Product) {
   const related =
     product.relatedProducts?.filter(
       (item): item is Product => typeof item === 'object' && Boolean(item),
@@ -190,39 +153,5 @@ async function getRecommendedProducts(product: Product): Promise<Product[]> {
     },
   })
 
-  return result.docs as Product[]
-}
-
-const queryProductBySlug = async ({ slug }: { slug: string }) => {
-  const { isEnabled: draft } = await draftMode()
-  const payload = await getPayload({ config: configPromise })
-
-  const result = await payload.find({
-    collection: 'products',
-    depth: 3,
-    draft,
-    limit: 1,
-    overrideAccess: draft,
-    pagination: false,
-    where: {
-      and: [
-        {
-          slug: {
-            equals: slug,
-          },
-        },
-        ...(draft ? [] : [{ _status: { equals: 'published' } }]),
-      ],
-    },
-    populate: {
-      variants: {
-        title: true,
-        priceInINR: true,
-        inventory: true,
-        options: true,
-      },
-    },
-  })
-
-  return result.docs?.[0] || null
+  return result.docs
 }

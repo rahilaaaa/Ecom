@@ -10,6 +10,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { hasRichTextContent } from '@/lib/product/content'
 
 type Props = {
   product: Product
@@ -20,15 +21,14 @@ const SHIPPING_COPY = `Complimentary shipping on orders over $150. Standard deli
 Returns are accepted within 30 days of delivery for unworn items in original condition with tags attached. Final sale items cannot be returned.`
 
 export function ProductAccordions({ product }: Props) {
-  const reviewLabel =
-    typeof product.rating === 'number'
-      ? `Reviews · ${product.rating.toFixed(1)}`
-      : 'Reviews'
+  const rating = typeof product.rating === 'number' ? product.rating : null
+  const hasDescription = hasRichTextContent(product.description)
+  const reviewLabel = rating != null ? `Reviews · ${rating.toFixed(1)}` : 'Reviews'
 
   return (
     <Accordion
       type="multiple"
-      defaultValue={['description']}
+      defaultValue={hasDescription ? ['description'] : []}
       className="w-full border-t border-[var(--elixir-surface-container-highest,#e5e2e1)]"
     >
       <AccordionItem value="description" className="border-[var(--elixir-surface-container-highest,#e5e2e1)]">
@@ -36,10 +36,10 @@ export function ProductAccordions({ product }: Props) {
           Description
         </AccordionTrigger>
         <AccordionContent className="pb-6 font-[family-name:var(--font-newsreader)] text-base leading-relaxed text-[var(--elixir-on-surface-variant,#414848)]">
-          {product.description ? (
+          {hasDescription && product.description ? (
             <RichText data={product.description} enableGutter={false} />
           ) : (
-            <p>Details for this piece will appear here once published.</p>
+            <p>No description available.</p>
           )}
         </AccordionContent>
       </AccordionItem>
@@ -56,27 +56,24 @@ export function ProductAccordions({ product }: Props) {
         </AccordionContent>
       </AccordionItem>
 
-      <AccordionItem
-        value="reviews"
-        className="border-[var(--elixir-surface-container-highest,#e5e2e1)]"
-      >
-        <AccordionTrigger className="py-5 font-[family-name:var(--font-inter)] text-sm font-medium text-[var(--elixir-on-surface,#1c1b1b)] hover:no-underline">
-          {reviewLabel}
-        </AccordionTrigger>
-        <AccordionContent className="pb-6 text-sm leading-relaxed text-[var(--elixir-on-surface-variant,#414848)]">
-          {typeof product.rating === 'number' ? (
+      {rating != null ? (
+        <AccordionItem
+          value="reviews"
+          className="border-[var(--elixir-surface-container-highest,#e5e2e1)]"
+        >
+          <AccordionTrigger className="py-5 font-[family-name:var(--font-inter)] text-sm font-medium text-[var(--elixir-on-surface,#1c1b1b)] hover:no-underline">
+            {reviewLabel}
+          </AccordionTrigger>
+          <AccordionContent className="pb-6 text-sm leading-relaxed text-[var(--elixir-on-surface-variant,#414848)]">
             <p>
               Average rating:{' '}
               <span className="font-medium text-[var(--elixir-on-surface,#1c1b1b)]">
-                {product.rating.toFixed(1)} / 5
+                {`${rating.toFixed(1)} / 5`}
               </span>
-              . Customer reviews will appear here as they are published.
             </p>
-          ) : (
-            <p>Customer reviews will appear here as they are published.</p>
-          )}
-        </AccordionContent>
-      </AccordionItem>
+          </AccordionContent>
+        </AccordionItem>
+      ) : null}
     </Accordion>
   )
 }

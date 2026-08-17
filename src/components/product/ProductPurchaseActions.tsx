@@ -7,6 +7,8 @@ import React, { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { useSelectedVariant } from '@/components/product/hooks'
+import { useProductQuantity } from '@/components/product/ProductPDPProvider'
+import { cartQuantityForSelection, getCartItemPayload, validatePurchase } from '@/lib/product/purchase'
 import { cn } from '@/utilities/cn'
 
 type Props = {
@@ -18,67 +20,56 @@ type Props = {
 export function ProductPurchaseActions({ product, className, sticky = false }: Props) {
   const { addItem, cart, isLoading } = useCart()
   const selectedVariant = useSelectedVariant(product)
+  const { quantity } = useProductQuantity()
   const router = useRouter()
   const [pendingAction, setPendingAction] = useState<'cart' | 'buy' | null>(null)
 
-  const disabled = useMemo(() => {
-    const existingItem = cart?.items?.find((item) => {
-      const productID = typeof item.product === 'object' ? item.product?.id : item.product
-      const variantID = item.variant
-        ? typeof item.variant === 'object'
-          ? item.variant?.id
-          : item.variant
-        : undefined
+  const cartQuantity = useMemo(
+    () =>
+      cartQuantityForSelection({
+        product,
+        selectedVariant,
+        cartItems: cart?.items,
+      }),
+    [cart?.items, product, selectedVariant],
+  )
 
-      if (productID === product.id) {
-        if (product.enableVariants) return variantID === selectedVariant?.id
-        return true
-      }
-      return false
-    })
-
-    if (existingItem) {
-      const existingQuantity = existingItem.quantity || 0
-      if (product.enableVariants) {
-        return existingQuantity >= (selectedVariant?.inventory || 0)
-      }
-      return existingQuantity >= (product.inventory || 0)
-    }
-
-    if (product.enableVariants) {
-      if (!selectedVariant) return true
-      if (!selectedVariant.inventory || selectedVariant.inventory <= 0) return true
-    } else if (!product.inventory || product.inventory <= 0) {
-      return true
-    }
-
-    return false
-  }, [cart?.items, product, selectedVariant])
-
-  const needsVariant = Boolean(product.enableVariants && !selectedVariant)
+  const validation = useMemo(
+    () =>
+      validatePurchase({
+        product,
+        selectedVariant,
+        quantity,
+        cartQuantity,
+      }),
+    [cartQuantity, product, quantity, selectedVariant],
+  )
 
   const addProduct = useCallback(async () => {
-    if (needsVariant) {
-      toast.error('Please select your options before continuing.')
-      return false
-    }
+    const nextValidation = validatePurchase({
+      product,
+      selectedVariant,
+      quantity,
+      cartQuantity,
+    })
 
-    if (disabled) {
-      toast.error('This item is currently unavailable.')
+    if (!nextValidation.ok) {
+      toast.error(nextValidation.message)
       return false
     }
 
     try {
-      await addItem({
-        product: product.id,
-        variant: selectedVariant?.id ?? undefined,
-      })
+      const item = getCartItemPayload({ product, selectedVariant })
+
+      for (let added = 0; added < quantity; added += 1) {
+        await addItem(item)
+      }
       return true
     } catch {
       toast.error('Unable to update your cart. Please try again.')
       return false
     }
-  }, [addItem, disabled, needsVariant, product.id, selectedVariant?.id])
+  }, [addItem, cartQuantity, product, quantity, selectedVariant])
 
   const onAddToCart = async () => {
     setPendingAction('cart')
@@ -95,6 +86,7 @@ export function ProductPurchaseActions({ product, className, sticky = false }: P
   }
 
   const busy = isLoading || pendingAction !== null
+  const purchaseBlocked = !validation.ok && validation.reason !== 'needs-options'
 
   return (
     <div
@@ -108,7 +100,7 @@ export function ProductPurchaseActions({ product, className, sticky = false }: P
       <button
         type="button"
         onClick={() => void onAddToCart()}
-        disabled={busy}
+        disabled={busy || purchaseBlocked}
         aria-label="Add to cart"
         className="inline-flex min-h-12 items-center justify-center border border-[var(--elixir-on-surface,#1c1b1b)] bg-white px-4 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--elixir-on-surface,#1c1b1b)] transition hover:bg-[var(--elixir-surface-container-low,#f6f3f2)] disabled:cursor-not-allowed disabled:opacity-50"
       >
@@ -117,7 +109,7 @@ export function ProductPurchaseActions({ product, className, sticky = false }: P
       <button
         type="button"
         onClick={() => void onBuyNow()}
-        disabled={busy}
+        disabled={busy || purchaseBlocked}
         aria-label="Buy now"
         className="inline-flex min-h-12 items-center justify-center bg-[var(--elixir-primary-container,#0d2b2b)] px-4 text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#164a4a] disabled:cursor-not-allowed disabled:opacity-50"
       >

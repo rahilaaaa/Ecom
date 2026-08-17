@@ -1,21 +1,18 @@
 'use client'
 
-import type { Media as MediaType, Product } from '@/payload-types'
-import { Heart } from 'lucide-react'
+import type { Product } from '@/payload-types'
+import { ChevronLeft, ChevronRight, Heart } from 'lucide-react'
 import React, { useEffect, useMemo, useTransition } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 import { Media } from '@/components/Media'
-import {
-  filterGalleryByColor,
-  getColorVariantType,
-  type GalleryItem,
-} from '@/lib/product/variantGallery'
+import { getMediaAlt, type ProductGalleryItem } from '@/lib/product/media'
+import { filterGalleryByColor, getColorVariantType } from '@/lib/product/variantGallery'
 import { useWishlist } from '@/providers/Wishlist'
 import { cn } from '@/utilities/cn'
 
 type Props = {
-  gallery: GalleryItem[]
+  gallery: ProductGalleryItem[]
   product: Product
   productId: string
   productTitle: string
@@ -36,7 +33,6 @@ export function ProductGallery({ gallery, product, productId, productTitle }: Pr
     [gallery, selectedColorId],
   )
 
-  // Reset to the first image whenever the selected COLOR changes (size must not affect this).
   useEffect(() => {
     setCurrent(0)
   }, [selectedColorId])
@@ -51,19 +47,68 @@ export function ProductGallery({ gallery, product, productId, productTitle }: Pr
 
   const safeIndex = Math.min(current, visibleGallery.length - 1)
   const active = visibleGallery[safeIndex]
+  const activeAlt = getMediaAlt(
+    active?.image,
+    visibleGallery.length > 1 ? `${productTitle} image ${safeIndex + 1}` : productTitle,
+  )
+  const canNavigate = visibleGallery.length > 1
+
+  const goTo = (index: number) => {
+    const last = visibleGallery.length - 1
+    if (index < 0) setCurrent(last)
+    else if (index > last) setCurrent(0)
+    else setCurrent(index)
+  }
 
   return (
     <div className="relative w-full">
-      <div className="relative aspect-[4/5] w-full overflow-hidden rounded-lg bg-[var(--elixir-surface-container-low,#f6f3f2)] md:aspect-[3/4]">
+      <div
+        className="relative aspect-[4/5] w-full overflow-hidden rounded-lg bg-[var(--elixir-surface-container-low,#f6f3f2)] md:aspect-[3/4]"
+        onKeyDown={(event) => {
+          if (!canNavigate) return
+          if (event.key === 'ArrowLeft') {
+            event.preventDefault()
+            goTo(safeIndex - 1)
+          }
+          if (event.key === 'ArrowRight') {
+            event.preventDefault()
+            goTo(safeIndex + 1)
+          }
+        }}
+        tabIndex={canNavigate ? 0 : undefined}
+        aria-label={activeAlt}
+      >
         {active?.image ? (
           <Media
-            resource={active.image as MediaType}
+            resource={active.image}
+            alt={activeAlt}
             fill
             priority
             imgClassName="object-cover"
             className="relative h-full w-full"
             size="(max-width: 1024px) 100vw, 50vw"
           />
+        ) : null}
+
+        {canNavigate ? (
+          <>
+            <button
+              type="button"
+              aria-label="Previous image"
+              onClick={() => goTo(safeIndex - 1)}
+              className="absolute left-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-[var(--elixir-on-surface,#1c1b1b)] shadow-[0_8px_24px_rgba(28,27,27,0.08)] transition hover:bg-white"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next image"
+              onClick={() => goTo(safeIndex + 1)}
+              className="absolute right-3 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/90 text-[var(--elixir-on-surface,#1c1b1b)] shadow-[0_8px_24px_rgba(28,27,27,0.08)] transition hover:bg-white"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </>
         ) : null}
 
         <button
@@ -83,28 +128,40 @@ export function ProductGallery({ gallery, product, productId, productTitle }: Pr
         </button>
       </div>
 
-      {visibleGallery.length > 1 ? (
+      {canNavigate ? (
         <div
-          className="mt-4 flex items-center justify-center gap-2"
+          className="mt-4 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           role="tablist"
           aria-label="Product images"
         >
-          {visibleGallery.map((item, index) => (
-            <button
-              key={`${(item.image as MediaType).id}-${index}`}
-              type="button"
-              role="tab"
-              aria-selected={index === safeIndex}
-              aria-label={`Show image ${index + 1}`}
-              onClick={() => setCurrent(index)}
-              className={cn(
-                'h-2 w-2 rounded-full transition',
-                index === safeIndex
-                  ? 'bg-[var(--elixir-on-surface,#1c1b1b)]'
-                  : 'bg-[var(--elixir-outline-variant,#c1c8c7)]',
-              )}
-            />
-          ))}
+          {visibleGallery.map((item, index) => {
+            const thumbAlt = getMediaAlt(item.image, `${productTitle} thumbnail ${index + 1}`)
+            return (
+              <button
+                key={`${item.image.id}-${item.id || index}`}
+                type="button"
+                role="tab"
+                aria-selected={index === safeIndex}
+                aria-label={thumbAlt}
+                onClick={() => setCurrent(index)}
+                className={cn(
+                  'relative h-20 w-16 shrink-0 overflow-hidden rounded-md border transition md:h-24 md:w-20',
+                  index === safeIndex
+                    ? 'border-[var(--elixir-on-surface,#1c1b1b)]'
+                    : 'border-transparent opacity-70 hover:opacity-100',
+                )}
+              >
+                <Media
+                  resource={item.image}
+                  alt={thumbAlt}
+                  fill
+                  imgClassName="object-cover"
+                  className="relative h-full w-full"
+                  size="80px"
+                />
+              </button>
+            )
+          })}
         </div>
       ) : null}
     </div>

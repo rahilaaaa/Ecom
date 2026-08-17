@@ -8,6 +8,7 @@ import React, { useCallback, useMemo } from 'react'
 import { toast } from 'sonner'
 
 import { useSelectedVariant } from '@/components/product/hooks'
+import { cartQuantityForSelection, getCartItemPayload, validatePurchase } from '@/lib/product/purchase'
 
 type Props = {
   product: Product
@@ -18,60 +19,49 @@ export function AddToCart({ product, className }: Props) {
   const { addItem, cart, isLoading } = useCart()
   const selectedVariant = useSelectedVariant(product)
 
+  const cartQuantity = useMemo(
+    () =>
+      cartQuantityForSelection({
+        product,
+        selectedVariant,
+        cartItems: cart?.items,
+      }),
+    [cart?.items, product, selectedVariant],
+  )
+
   const addToCart = useCallback(
     (e: React.FormEvent<HTMLButtonElement>) => {
       e.preventDefault()
 
-      if (product.enableVariants && !selectedVariant) {
-        toast.error('Please select your options before continuing.')
+      const validation = validatePurchase({
+        product,
+        selectedVariant,
+        quantity: 1,
+        cartQuantity,
+      })
+
+      if (!validation.ok) {
+        toast.error(validation.message)
         return
       }
 
-      addItem({
-        product: product.id,
-        variant: selectedVariant?.id ?? undefined,
-      }).then(() => {
+      addItem(getCartItemPayload({ product, selectedVariant })).then(() => {
         toast.success('Item added to cart.')
       })
     },
-    [addItem, product, selectedVariant],
+    [addItem, cartQuantity, product, selectedVariant],
   )
 
-  const disabled = useMemo<boolean>(() => {
-    const existingItem = cart?.items?.find((item) => {
-      const productID = typeof item.product === 'object' ? item.product?.id : item.product
-      const variantID = item.variant
-        ? typeof item.variant === 'object'
-          ? item.variant?.id
-          : item.variant
-        : undefined
-
-      if (productID === product.id) {
-        if (product.enableVariants) {
-          return variantID === selectedVariant?.id
-        }
-        return true
-      }
-      return false
-    })
-
-    if (existingItem) {
-      const existingQuantity = existingItem.quantity || 0
-      if (product.enableVariants) {
-        return existingQuantity >= (selectedVariant?.inventory || 0)
-      }
-      return existingQuantity >= (product.inventory || 0)
-    }
-
-    if (product.enableVariants) {
-      if (!selectedVariant) return true
-      if (!selectedVariant.inventory || selectedVariant.inventory <= 0) return true
-    } else if (!product.inventory || product.inventory <= 0) {
-      return true
-    }
-
-    return false
-  }, [selectedVariant, cart?.items, product])
+  const disabled = useMemo(
+    () =>
+      !validatePurchase({
+        product,
+        selectedVariant,
+        quantity: 1,
+        cartQuantity,
+      }).ok,
+    [cartQuantity, product, selectedVariant],
+  )
 
   return (
     <Button
