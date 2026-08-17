@@ -3,9 +3,9 @@
 import type { Product } from '@/payload-types'
 import { ChevronLeft, ChevronRight, Heart } from 'lucide-react'
 import React, { useEffect, useMemo, useTransition } from 'react'
-import { useSearchParams } from 'next/navigation'
 
 import { Media } from '@/components/Media'
+import { useProductPDP } from '@/components/product/ProductPDPProvider'
 import { getMediaAlt, type ProductGalleryItem } from '@/lib/product/media'
 import { filterGalleryByColor, getColorVariantType } from '@/lib/product/variantGallery'
 import { useWishlist } from '@/providers/Wishlist'
@@ -19,14 +19,14 @@ type Props = {
 }
 
 export function ProductGallery({ gallery, product, productId, productTitle }: Props) {
-  const searchParams = useSearchParams()
+  const pdp = useProductPDP()
   const [current, setCurrent] = React.useState(0)
   const { isWishlisted, toggleWishlist } = useWishlist()
   const [isPending, startTransition] = useTransition()
   const wishlisted = isWishlisted(productId)
 
   const colorType = useMemo(() => getColorVariantType(product), [product])
-  const selectedColorId = colorType?.name ? searchParams.get(colorType.name) : null
+  const selectedColorId = colorType?.name ? pdp?.selectedOptions[colorType.name] ?? null : null
 
   const visibleGallery = useMemo(
     () => filterGalleryByColor(gallery, selectedColorId),
@@ -60,10 +60,53 @@ export function ProductGallery({ gallery, product, productId, productTitle }: Pr
     else setCurrent(index)
   }
 
+  const thumbnails = canNavigate
+    ? visibleGallery.map((item, index) => {
+        const thumbAlt = getMediaAlt(item.image, `${productTitle} thumbnail ${index + 1}`)
+        return (
+          <button
+            key={`${item.image.id}-${item.id || index}`}
+            type="button"
+            role="tab"
+            aria-selected={index === safeIndex}
+            aria-label={thumbAlt}
+            onClick={() => setCurrent(index)}
+            className={cn(
+              'relative h-20 w-16 shrink-0 overflow-hidden rounded-md border transition md:h-24 md:w-20 lg:h-20 lg:w-16',
+              index === safeIndex
+                ? 'border-[var(--elixir-on-surface,#1c1b1b)]'
+                : 'border-transparent opacity-70 hover:opacity-100',
+            )}
+          >
+            {item.image?.url || item.image?.filename ? (
+              <Media
+                resource={item.image}
+                alt={thumbAlt}
+                fill
+                imgClassName="object-cover"
+                className="relative h-full w-full"
+                size="80px"
+              />
+            ) : null}
+          </button>
+        )
+      })
+    : null
+
   return (
-    <div className="relative w-full">
+    <div className="relative flex w-full flex-col-reverse gap-4 lg:flex-row lg:items-start">
+      {canNavigate ? (
+        <div
+          className="flex gap-3 overflow-x-auto pb-1 lg:max-h-[36rem] lg:w-20 lg:shrink-0 lg:flex-col lg:overflow-x-hidden lg:overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label="Product images"
+        >
+          {thumbnails}
+        </div>
+      ) : null}
+
       <div
-        className="relative aspect-[4/5] w-full overflow-hidden rounded-lg bg-[var(--elixir-surface-container-low,#f6f3f2)] md:aspect-[3/4]"
+        className="relative min-w-0 flex-1 overflow-hidden rounded-lg bg-[var(--elixir-surface-container-low,#f6f3f2)] aspect-[4/5] md:aspect-[3/4]"
         onKeyDown={(event) => {
           if (!canNavigate) return
           if (event.key === 'ArrowLeft') {
@@ -78,7 +121,7 @@ export function ProductGallery({ gallery, product, productId, productTitle }: Pr
         tabIndex={canNavigate ? 0 : undefined}
         aria-label={activeAlt}
       >
-        {active?.image ? (
+        {active?.image && (active.image.url || active.image.filename) ? (
           <Media
             resource={active.image}
             alt={activeAlt}
@@ -127,43 +170,6 @@ export function ProductGallery({ gallery, product, productId, productTitle }: Pr
           />
         </button>
       </div>
-
-      {canNavigate ? (
-        <div
-          className="mt-4 flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          role="tablist"
-          aria-label="Product images"
-        >
-          {visibleGallery.map((item, index) => {
-            const thumbAlt = getMediaAlt(item.image, `${productTitle} thumbnail ${index + 1}`)
-            return (
-              <button
-                key={`${item.image.id}-${item.id || index}`}
-                type="button"
-                role="tab"
-                aria-selected={index === safeIndex}
-                aria-label={thumbAlt}
-                onClick={() => setCurrent(index)}
-                className={cn(
-                  'relative h-20 w-16 shrink-0 overflow-hidden rounded-md border transition md:h-24 md:w-20',
-                  index === safeIndex
-                    ? 'border-[var(--elixir-on-surface,#1c1b1b)]'
-                    : 'border-transparent opacity-70 hover:opacity-100',
-                )}
-              >
-                <Media
-                  resource={item.image}
-                  alt={thumbAlt}
-                  fill
-                  imgClassName="object-cover"
-                  className="relative h-full w-full"
-                  size="80px"
-                />
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
     </div>
   )
 }

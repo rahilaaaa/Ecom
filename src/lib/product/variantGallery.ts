@@ -32,10 +32,7 @@ export function filterGalleryByColor(
 ): GalleryItem[] {
   if (!gallery.length) return []
 
-  if (!selectedColorOptionId) {
-    const untagged = gallery.filter((item) => !item.variantOption)
-    return untagged.length ? untagged : gallery
-  }
+  if (!selectedColorOptionId) return gallery
 
   const colorMatches = gallery.filter(
     (item) => optionId(item.variantOption) === String(selectedColorOptionId),

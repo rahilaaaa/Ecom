@@ -4,16 +4,23 @@ import type { Product, Variant } from '@/payload-types'
 import { useSearchParams } from 'next/navigation'
 import { useMemo } from 'react'
 
+import { useProductPDP } from '@/components/product/ProductPDPProvider'
 import { getEffectivePrice, getEffectivePriceRange } from '@/lib/currency'
 import { resolveVariantFromSearchParams } from '@/lib/product/variants'
 
 export function useSelectedVariant(product: Product): Variant | undefined {
+  const context = useProductPDP()
   const searchParams = useSearchParams()
-
-  return useMemo(
+  const fromUrl = useMemo(
     () => resolveVariantFromSearchParams(product, searchParams),
     [product, searchParams],
   )
+
+  if (context && String(context.product.id) === String(product.id)) {
+    return context.selectedVariant
+  }
+
+  return fromUrl
 }
 
 export function useProductPrice(product: Product): {

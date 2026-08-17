@@ -1,5 +1,54 @@
 import type { Product, Variant, VariantOption, VariantType } from '@/payload-types'
 
+export type SearchParamsLike = {
+  get: (name: string) => string | null
+  keys?: () => IterableIterator<string>
+  toString?: () => string
+}
+
+export function cloneSearchParams(params: SearchParamsLike | URLSearchParams): URLSearchParams {
+  if (params instanceof URLSearchParams) return new URLSearchParams(params)
+
+  if (typeof params.toString === 'function') {
+    const raw = params.toString()
+    if (raw && raw !== '[object Object]') return new URLSearchParams(raw)
+  }
+
+  const next = new URLSearchParams()
+  if (typeof params.keys === 'function') {
+    for (const key of params.keys()) {
+      const value = params.get(key)
+      if (value != null) next.set(key, value)
+    }
+  }
+
+  return next
+}
+
+export function getSearchParam(params: SearchParamsLike, name: string): string | null {
+  const direct = params.get(name)
+  if (direct) return direct
+
+  const target = name.toLowerCase()
+  if (typeof params.keys === 'function') {
+    for (const key of params.keys()) {
+      if (key.toLowerCase() === target) {
+        const value = params.get(key)
+        if (value) return value
+      }
+    }
+  }
+
+  if (typeof params.toString === 'function') {
+    const cloned = cloneSearchParams(params)
+    for (const key of cloned.keys()) {
+      if (key.toLowerCase() === target) return cloned.get(key)
+    }
+  }
+
+  return params.get(name.toLowerCase())
+}
+
 export function optionId(value: unknown): string | null {
   if (value == null) return null
   if (typeof value === 'object' && 'id' in value) {
@@ -227,8 +276,18 @@ export function findVariantsContaining(product: Product, optionIds: string[]): V
   })
 }
 
+export function toInventoryCount(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
 export function variantIsInStock(variant: Variant | null | undefined): boolean {
-  return Boolean(variant && typeof variant.inventory === 'number' && variant.inventory > 0)
+  const inventory = toInventoryCount(variant?.inventory)
+  return inventory != null && inventory > 0
 }
 
 export type OptionAvailability = {
@@ -265,12 +324,77 @@ export function getOptionAvailability(args: {
   }
 }
 
+export function matchOptionFromParam(
+  group: VariantTypeGroup,
+  raw: string | null | undefined,
+): VariantOptionView | undefined {
+  if (!raw) return undefined
+  const needle = raw.trim()
+  if (!needle) return undefined
+  const lower = needle.toLowerCase()
+
+  return group.options.find((option) => {
+    return (
+      option.id === needle ||
+      option.value === needle ||
+      option.label === needle ||
+      option.value.toLowerCase() === lower ||
+      option.label.toLowerCase() === lower
+    )
+  })
+}
+
+export function parseSelectedOptions(
+  product: Product,
+  params: SearchParamsLike,
+): Record<string, string> {
+  const selected: Record<string, string> = {}
+  for (const group of buildVariantOptionGroups(product)) {
+    const match = matchOptionFromParam(group, getSearchParam(params, group.name))
+    if (match) selected[group.name] = match.id
+  }
+  return selected
+}
+
+export function resolveVariantFromSelectedOptions(
+  product: Product,
+  selectedOptions: Record<string, string>,
+): Variant | undefined {
+  const groups = buildVariantOptionGroups(product)
+  if (!groups.length) return undefined
+
+  const selectedIds: string[] = []
+  for (const group of groups) {
+    const id = selectedOptions[group.name]
+    if (!id) return undefined
+    selectedIds.push(id)
+  }
+
+  return findVariantForOptions(product, selectedIds)
+}
+
+export function paramsFromSelectedOptions(
+  product: Product,
+  selectedOptions: Record<string, string>,
+): URLSearchParams {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(selectedOptions)) {
+    if (value) params.set(key, value)
+  }
+
+  const variant = resolveVariantFromSelectedOptions(product, selectedOptions)
+  if (variant) params.set('variant', String(variant.id))
+  else params.delete('variant')
+
+  return params
+}
+
 export function applyVariantToSearchParams(args: {
   product: Product
   variant: Variant
-  currentParams: URLSearchParams
+  currentParams: SearchParamsLike | URLSearchParams
 }): URLSearchParams {
-  const next = new URLSearchParams(args.currentParams.toString())
+  const next = cloneSearchParams(args.currentParams)
   const variantOptionIds = getVariantOptionIds(args.variant)
   next.set('variant', String(args.variant.id))
   next.delete('image')
@@ -286,16 +410,18 @@ export function applyVariantToSearchParams(args: {
 
 function selectedIdsFromParams(args: {
   product: Product
-  params: URLSearchParams
+  params: SearchParamsLike | URLSearchParams
   override?: { typeName: string; optionId: string }
 }): string[] {
   const ids: string[] = []
   for (const group of buildVariantOptionGroups(args.product)) {
-    const value =
-      args.override && group.name === args.override.typeName
-        ? args.override.optionId
-        : args.params.get(group.name)
-    if (value) ids.push(value)
+    if (args.override && group.name === args.override.typeName) {
+      ids.push(args.override.optionId)
+      continue
+    }
+
+    const match = matchOptionFromParam(group, getSearchParam(args.params, group.name))
+    if (match) ids.push(match.id)
   }
   return uniqueOptionIds(ids)
 }
@@ -308,10 +434,10 @@ export function buildParamsForColorChange(args: {
   product: Product
   colorTypeName: string
   nextColorOptionId: string
-  currentParams: URLSearchParams
+  currentParams: SearchParamsLike | URLSearchParams
 }): URLSearchParams {
   const { product, colorTypeName, nextColorOptionId, currentParams } = args
-  const next = new URLSearchParams(currentParams.toString())
+  const next = cloneSearchParams(currentParams)
   next.set(colorTypeName, nextColorOptionId)
   next.delete('image')
 
@@ -345,10 +471,10 @@ export function buildParamsForOptionChange(args: {
   product: Product
   typeName: string
   optionId: string
-  currentParams: URLSearchParams
+  currentParams: SearchParamsLike | URLSearchParams
 }): URLSearchParams {
   const { product, typeName, optionId: nextOptionId, currentParams } = args
-  const next = new URLSearchParams(currentParams.toString())
+  const next = cloneSearchParams(currentParams)
   next.set(typeName, nextOptionId)
   next.delete('image')
 
@@ -367,33 +493,49 @@ export function buildParamsForOptionChange(args: {
   return next
 }
 
+export function applyOptionSelection(args: {
+  product: Product
+  typeName: string
+  optionId: string
+  isColor: boolean
+  currentParams: SearchParamsLike | URLSearchParams
+}): URLSearchParams {
+  return args.isColor
+    ? buildParamsForColorChange({
+        product: args.product,
+        colorTypeName: args.typeName,
+        nextColorOptionId: args.optionId,
+        currentParams: args.currentParams,
+      })
+    : buildParamsForOptionChange({
+        product: args.product,
+        typeName: args.typeName,
+        optionId: args.optionId,
+        currentParams: args.currentParams,
+      })
+}
+
 export function resolveVariantFromSearchParams(
   product: Product,
-  searchParams: URLSearchParams | { get: (name: string) => string | null },
+  searchParams: SearchParamsLike | URLSearchParams,
 ): Variant | undefined {
   const variants = getProductVariants(product)
   if (!product.enableVariants || !variants.length) return undefined
 
   const groups = buildVariantOptionGroups(product)
   if (groups.length) {
-    const selectedIds: string[] = []
-    let allTypesSelected = true
-    for (const group of groups) {
-      const value = searchParams.get(group.name)
-      if (!value) {
-        allTypesSelected = false
-        break
-      }
-      selectedIds.push(value)
-    }
+    const hasOptionParam = groups.some((group) => Boolean(getSearchParam(searchParams, group.name)))
 
-    if (allTypesSelected) {
-      // Option params are the source of truth so a stale `variant` query cannot keep an invalid combo.
+    if (hasOptionParam) {
+      // Option params are authoritative so a stale `variant` query cannot keep an invalid combo.
+      const selected = parseSelectedOptions(product, searchParams)
+      const selectedIds = groups.map((group) => selected[group.name]).filter(Boolean)
+      if (selectedIds.length !== groups.length) return undefined
       return findVariantForOptions(product, selectedIds)
     }
   }
 
-  const variantId = searchParams.get('variant')
+  const variantId = getSearchParam(searchParams, 'variant')
   if (variantId) {
     return variants.find((variant) => String(variant.id) === variantId)
   }

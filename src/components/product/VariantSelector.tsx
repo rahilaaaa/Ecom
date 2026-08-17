@@ -1,15 +1,12 @@
 'use client'
 
 import type { Product } from '@/payload-types'
-import { createUrl } from '@/utilities/createUrl'
 import { cn } from '@/utilities/cn'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import React, { useMemo } from 'react'
 
 import { SizeGuide } from '@/components/product/SizeGuide'
+import { useProductPDP } from '@/components/product/ProductPDPProvider'
 import {
-  buildParamsForColorChange,
-  buildParamsForOptionChange,
   buildVariantOptionGroups,
   canSelectOption,
   getOptionAvailability,
@@ -48,19 +45,9 @@ type Props = {
 }
 
 export function VariantSelector({ product }: Props) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
+  const pdp = useProductPDP()
   const groups = useMemo(() => buildVariantOptionGroups(product), [product])
-
-  const selectedByType = useMemo(() => {
-    const selected: Record<string, string> = {}
-    for (const group of groups) {
-      const value = searchParams.get(group.name)
-      if (value) selected[group.name] = value
-    }
-    return selected
-  }, [groups, searchParams])
+  const selectedByType = pdp?.selectedOptions ?? {}
 
   if (!groups.length) return null
 
@@ -100,21 +87,11 @@ export function VariantSelector({ product }: Props) {
 
                 const onSelect = () => {
                   if (!canSelect) return
-                  const nextParams = group.isColor
-                    ? buildParamsForColorChange({
-                        product,
-                        colorTypeName: group.name,
-                        nextColorOptionId: option.id,
-                        currentParams: searchParams,
-                      })
-                    : buildParamsForOptionChange({
-                        product,
-                        typeName: group.name,
-                        optionId: option.id,
-                        currentParams: searchParams,
-                      })
-
-                  router.replace(createUrl(pathname, nextParams), { scroll: false })
+                  pdp?.selectOption({
+                    typeName: group.name,
+                    optionId: option.id,
+                    isColor: group.isColor,
+                  })
                 }
 
                 if (group.isColor) {
@@ -126,14 +103,15 @@ export function VariantSelector({ product }: Props) {
                       disabled={!canSelect}
                       aria-label={`${option.label}${!availability.exists ? ' (unavailable)' : !availability.inStock ? ' (out of stock)' : ''}`}
                       aria-pressed={isActive}
+                      data-selected={isActive ? 'true' : 'false'}
                       title={`${option.label}${!availability.exists ? ' (Unavailable)' : !availability.inStock ? ' (Out of Stock)' : ''}`}
                       onClick={onSelect}
                       className={cn(
-                        'flex h-12 w-12 items-center justify-center rounded-full border transition',
+                        'relative z-10 flex h-12 w-12 items-center justify-center rounded-full border-2 transition',
                         isActive
                           ? 'border-[var(--elixir-on-surface,#1c1b1b)]'
-                          : 'border-transparent',
-                        !canSelect && 'cursor-not-allowed opacity-40',
+                          : 'border-transparent hover:border-[var(--elixir-outline-variant,#c1c8c7)]',
+                        !canSelect && 'pointer-events-none cursor-not-allowed opacity-40',
                       )}
                     >
                       <span
@@ -150,16 +128,17 @@ export function VariantSelector({ product }: Props) {
                     type="button"
                     disabled={!canSelect}
                     aria-pressed={isActive}
+                    data-selected={isActive ? 'true' : 'false'}
                     aria-label={`${group.label} ${option.label}${!availability.exists ? ' (unavailable)' : !availability.inStock ? ' (out of stock)' : ''}`}
                     title={`${option.label}${!availability.exists ? ' (Unavailable)' : !availability.inStock ? ' (Out of Stock)' : ''}`}
                     onClick={onSelect}
                     className={cn(
-                      'inline-flex min-h-12 min-w-12 items-center justify-center rounded-md border px-4 text-sm transition',
+                      'relative z-10 inline-flex min-h-12 min-w-12 items-center justify-center rounded-md border px-4 text-sm transition',
                       isActive
-                        ? 'border-[var(--elixir-outline-variant,#c1c8c7)] bg-[var(--elixir-surface-container,#f0eded)] text-[var(--elixir-on-surface,#1c1b1b)]'
+                        ? 'border-[var(--elixir-on-surface,#1c1b1b)] bg-[var(--elixir-surface-container,#f0eded)] text-[var(--elixir-on-surface,#1c1b1b)]'
                         : 'border-[var(--elixir-outline-variant,#c1c8c7)] bg-transparent text-[var(--elixir-on-surface,#1c1b1b)] hover:bg-[var(--elixir-surface-container-low,#f6f3f2)]',
                       group.isSize && 'min-w-14',
-                      !canSelect && 'cursor-not-allowed opacity-40 line-through',
+                      !canSelect && 'pointer-events-none cursor-not-allowed opacity-40 line-through',
                       canSelect && !availability.inStock && 'opacity-50',
                     )}
                   >
